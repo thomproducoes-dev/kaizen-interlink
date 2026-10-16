@@ -98,6 +98,27 @@ export async function alternarAtivo(form: FormData) {
   revalidatePath("/gestor");
 }
 
+export async function criarMaquina(_: Resultado, form: FormData): Promise<Resultado> {
+  const nome = String(form.get("nome") ?? "").trim();
+  const setorId = String(form.get("setor_id") ?? "");
+  if (nome.length < 2) return { ok: false, mensagem: "Informe o nome da máquina ou posto." };
+  if (!setorId) return { ok: false, mensagem: "Escolha o setor." };
+  const supabase = await criarClienteServidor();
+  const { data: empresaId } = await supabase.rpc("minha_empresa");
+  const { error } = await supabase.from("maquinas").insert({ empresa_id: empresaId, setor_id: setorId, nome });
+  if (error) return { ok: false, mensagem: "Não foi possível salvar. Tente de novo." };
+  revalidatePath("/gestor/maquinas");
+  return { ok: true, mensagem: `${nome} cadastrada. A etiqueta já está disponível para impressão.` };
+}
+
+export async function alternarMaquina(form: FormData) {
+  const id = String(form.get("id") ?? "");
+  const ativa = form.get("ativa") === "true";
+  const supabase = await criarClienteServidor();
+  await supabase.from("maquinas").update({ ativa: !ativa }).eq("id", id);
+  revalidatePath("/gestor/maquinas");
+}
+
 export async function salvarPapeis(form: FormData) {
   const id = String(form.get("id") ?? "");
   const papeis = form.getAll("papeis").map(String).filter((p) => PAPEIS_PERMITIDOS.includes(p));

@@ -11,3 +11,14 @@ export function lerAdesivo(texto: string): string | null {
   const limpo = texto.trim().toLowerCase().replace(/^kz1:/, "");
   return /^[0-9a-f]{32}$/.test(limpo) ? limpo : null;
 }
+
+// Etiqueta de máquina: o QR guarda um endereço (…/m/<código>), para que a câmera comum do
+// celular também abra o sistema. Aceita ainda o formato curto KZM:<código>.
+export function lerMaquina(texto: string): string | null {
+  const m = texto.trim().match(/(?:\/m\/|^kzm:)([0-9a-f]{24})\/?$/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+export function enderecoMaquina(origem: string, codigo: string) {
+  return `${origem.replace(/\/$/, "")}/m/${codigo}`;
+}

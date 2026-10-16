@@ -36,11 +36,17 @@ export default async function GestorLayout({ children }: { children: React.React
             <p className="text-xs uppercase tracking-widest text-muted">{empresa?.nome ?? ""}</p>
           </div>
           <nav className="flex gap-1 text-sm font-semibold">
+            <Link href="/gestor/ideias" className="rounded-lg px-3 py-2 hover:bg-surface-2">
+              Ideias
+            </Link>
             <Link href="/gestor" className="rounded-lg px-3 py-2 hover:bg-surface-2">
               Colaboradores
             </Link>
             <Link href="/gestor/adesivos" className="rounded-lg px-3 py-2 hover:bg-surface-2">
               Adesivos QR
+            </Link>
+            <Link href="/gestor/maquinas" className="rounded-lg px-3 py-2 hover:bg-surface-2">
+              Máquinas
             </Link>
           </nav>
           <form action={sair} className="ml-auto">

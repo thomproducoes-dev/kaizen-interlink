@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Icone } from "@/components/icone";
 import { Galeria } from "@/components/visualizador";
+import { AcaoAutor } from "./acao-autor";
 import { CLASSE_TOM, STATUS, formatarData, formatarDataHora, nomeCategoria } from "@/lib/ideias";
 import { criarClienteNavegador } from "@/lib/supabase/client";
 
@@ -74,20 +75,24 @@ type Detalhe = {
   eventos: { para: string; por_texto: string; nota: string | null; criado_em: string }[];
   midias: { tipo: string; url: string | null; duracao_s: number | null }[];
   mensagens: { texto: string; criada_em: string }[];
+  souAutor: boolean;
 };
 
-export function DetalheIdeia({ id, euId, aoVoltar }: { id: string; euId: string; aoVoltar: () => void }) {
+export function DetalheIdeia({ id, euId, empresaId, aoVoltar }: { id: string; euId: string; empresaId: string; aoVoltar: () => void }) {
   const [d, setD] = useState<Detalhe | null>(null);
   const [erro, setErro] = useState(false);
+  const [recarga, setRecarga] = useState(0);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   useEffect(() => {
     const sb = criarClienteNavegador();
     (async () => {
-      const [ideia, eventos, midias, mensagens] = await Promise.all([
-        sb.from("ideias").select("protocolo, status, categoria, texto, prazo_atual, setores(nome), maquinas(nome)").eq("id", id).single(),
+      const [ideia, eventos, midias, mensagens, selada] = await Promise.all([
+        sb.from("ideias").select("protocolo, status, categoria, texto, prazo_atual, autor_id, setores(nome), maquinas(nome)").eq("id", id).single(),
         sb.from("ideia_eventos").select("para, por_texto, nota, criado_em").eq("ideia_id", id).order("criado_em", { ascending: false }),
         sb.from("ideia_midias").select("tipo, caminho, duracao_s").eq("ideia_id", id).order("caminho"),
         sb.from("notificacoes").select("texto, criada_em").eq("ideia_id", id).eq("colaborador_id", euId).order("criada_em", { ascending: false }),
+        sb.from("ideia_autoria_selada").select("colaborador_id").eq("ideia_id", id),
       ]);
       if (ideia.error) return setErro(true);
       const caminhos = (midias.data ?? []).map((m) => m.caminho);
@@ -97,10 +102,11 @@ export function DetalheIdeia({ id, euId, aoVoltar }: { id: string; euId: string;
         eventos: eventos.data ?? [],
         midias: (midias.data ?? []).map((m, k) => ({ tipo: m.tipo, duracao_s: m.duracao_s, url: assinadas[k]?.signedUrl ?? null })),
         mensagens: mensagens.data ?? [],
+        souAutor: ideia.data.autor_id === euId || (selada.data ?? []).some((s) => s.colaborador_id === euId),
       });
       await sb.from("notificacoes").update({ lida_em: new Date().toISOString() }).eq("ideia_id", id).eq("colaborador_id", euId).is("lida_em", null);
     })();
-  }, [id, euId]);
+  }, [id, euId, recarga]);
 
   return (
     <section className="flex flex-1 flex-col gap-4">
@@ -136,6 +142,20 @@ export function DetalheIdeia({ id, euId, aoVoltar }: { id: string; euId: string;
               <p>{m.texto}</p>
             </div>
           ))}
+          {aviso && <p className="rounded-xl bg-good-bg px-4 py-3 font-semibold text-good">{aviso}</p>}
+          {d.souAutor && (d.ideia.status === "aguardando_autor" || d.ideia.status === "reprovada") && (
+            <AcaoAutor
+              key={`${d.ideia.status}-${recarga}`}
+              tipo={d.ideia.status === "aguardando_autor" ? "responder" : "reenviar"}
+              ideiaId={id}
+              empresaId={empresaId}
+              textoAtual={d.ideia.texto ?? ""}
+              aoConcluir={(m) => {
+                setAviso(m);
+                setRecarga((r) => r + 1);
+              }}
+            />
+          )}
           <div>
             <span className="text-xs font-semibold uppercase tracking-widest text-muted">Andamento</span>
             <ul className="mt-1">

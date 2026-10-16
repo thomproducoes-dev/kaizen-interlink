@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -66,7 +66,7 @@ export async function criarColaborador(_: Resultado, form: FormData): Promise<Re
     .insert(lista.map((papel) => ({ colaborador_id: novo.id, papel })));
   if (erroPapeis) return { ok: false, mensagem: "Colaborador criado, mas os papéis não foram salvos. Edite os papéis na lista." };
 
-  revalidatePath("/gestor");
+  revalidatePath("/gestor/colaboradores");
   return { ok: true, mensagem: `${nome} cadastrado. O adesivo já está disponível para impressão.` };
 }
 
@@ -78,7 +78,7 @@ export async function redefinirPin(_: Resultado, form: FormData): Promise<Result
   const supabase = await criarClienteServidor();
   const { error } = await supabase.rpc("definir_pin", { p_colaborador: id, p_pin: pin });
   if (error) return { ok: false, mensagem: traduzir(error.message) };
-  revalidatePath("/gestor");
+  revalidatePath("/gestor/colaboradores");
   return { ok: true, mensagem: "PIN redefinido e adesivo desbloqueado." };
 }
 
@@ -86,7 +86,7 @@ export async function novoAdesivo(form: FormData) {
   const id = String(form.get("id") ?? "");
   const supabase = await criarClienteServidor();
   await supabase.rpc("gerar_qr", { p_colaborador: id });
-  revalidatePath("/gestor");
+  revalidatePath("/gestor/colaboradores");
   revalidatePath("/gestor/adesivos");
 }
 
@@ -95,7 +95,7 @@ export async function alternarAtivo(form: FormData) {
   const ativo = form.get("ativo") === "true";
   const supabase = await criarClienteServidor();
   await supabase.from("colaboradores").update({ ativo: !ativo }).eq("id", id);
-  revalidatePath("/gestor");
+  revalidatePath("/gestor/colaboradores");
 }
 
 export async function criarMaquina(_: Resultado, form: FormData): Promise<Resultado> {
@@ -130,5 +130,5 @@ export async function salvarPapeis(form: FormData) {
   const incluir = [...desejados].filter((p) => !atuaisSet.has(p));
   if (remover.length) await supabase.from("colaborador_papeis").delete().eq("colaborador_id", id).in("papel", remover);
   if (incluir.length) await supabase.from("colaborador_papeis").insert(incluir.map((papel) => ({ colaborador_id: id, papel })));
-  revalidatePath("/gestor");
+  revalidatePath("/gestor/colaboradores");
 }

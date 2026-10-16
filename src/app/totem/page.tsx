@@ -363,7 +363,7 @@ function Totem() {
         )}
 
         {tela === "detalhe" && ideiaAberta && ctx && (
-          <DetalheIdeia id={ideiaAberta} euId={ctx.eu.id} aoVoltar={() => setTela("minhas")} />
+          <DetalheIdeia id={ideiaAberta} euId={ctx.eu.id} empresaId={ctx.eu.empresaId} aoVoltar={() => setTela("minhas")} />
         )}
       </div>
     </main>

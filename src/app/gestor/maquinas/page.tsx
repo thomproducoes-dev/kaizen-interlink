@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { alternarMaquina } from "../actions";
+import { exigirGestor } from "@/lib/gestao";
 import { criarClienteServidor } from "@/lib/supabase/server";
 import { FormNovaMaquina } from "./form";
 
 export default async function Maquinas() {
   const supabase = await criarClienteServidor();
+  await exigirGestor(supabase);
   const [{ data: setores }, { data: maquinas }] = await Promise.all([
     supabase.from("setores").select("id, nome").eq("ativo", true).order("nome"),
     supabase.from("maquinas").select("id, nome, ativa, setor_id").order("nome"),

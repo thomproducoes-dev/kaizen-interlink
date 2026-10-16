@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { AssistenteEtiquetas, type ItemEtiqueta } from "@/components/assistente-etiquetas";
 import { enderecoMaquina } from "@/lib/adesivo";
+import { exigirGestor } from "@/lib/gestao";
 import { criarClienteServidor } from "@/lib/supabase/server";
 
 // Etiquetas das máquinas. O QR guarda o endereço do sistema: a câmera comum do celular também abre.
@@ -9,6 +10,7 @@ export default async function Etiquetas() {
   const origem = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
 
   const supabase = await criarClienteServidor();
+  await exigirGestor(supabase);
   const [{ data: setores }, { data: maquinas }] = await Promise.all([
     supabase.from("setores").select("id, nome"),
     supabase.from("maquinas").select("id, nome, setor_id, codigo_qr").eq("ativa", true).order("nome"),

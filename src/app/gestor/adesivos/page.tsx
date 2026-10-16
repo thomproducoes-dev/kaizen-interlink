@@ -1,5 +1,6 @@
 import { AssistenteEtiquetas, type ItemEtiqueta } from "@/components/assistente-etiquetas";
 import { conteudoAdesivo } from "@/lib/adesivo";
+import { exigirGestor } from "@/lib/gestao";
 import { criarClienteServidor } from "@/lib/supabase/server";
 
 type Adesivo = {
@@ -14,6 +15,7 @@ type Adesivo = {
 // Adesivos QR pessoais. O modelo final do adesivo será definido pela Interlink.
 export default async function Adesivos() {
   const supabase = await criarClienteServidor();
+  await exigirGestor(supabase);
   const { data } = await supabase.rpc("listar_adesivos");
   const itens: ItemEtiqueta[] = ((data ?? []) as Adesivo[])
     .filter((a) => a.ativo)

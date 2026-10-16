@@ -46,6 +46,25 @@ export const MODOS: { k: Modo; n: string; d: string }[] = [
   { k: "anonimo", n: "Anônimo", d: "Ninguém vê seu nome. Os pontos ficam guardados e o RH entrega o prêmio se você pedir." },
 ];
 
+// Situação do prazo calculada no banco (fila_ideias), em dias úteis.
+export const CLASSE_SITUACAO: Record<string, string> = {
+  estourado: "text-bad",
+  vence_hoje: "text-warn",
+  alerta: "text-warn",
+  ok: "text-good",
+  pausada: "text-muted",
+  encerrada: "text-muted",
+};
+
+export function textoPrazo(situacao: string, dias: number | null, prazo: string | null) {
+  if (situacao === "encerrada") return "Encerrada";
+  if (situacao === "pausada") return `Revisão ${formatarData(prazo)}`;
+  if (dias == null) return "—";
+  if (dias < 0) return `Estourado há ${-dias} d.ú.`;
+  if (dias === 0) return "Vence hoje";
+  return `Faltam ${dias} d.ú.`;
+}
+
 // Nome mostrado conforme o modo de identidade escolhido pelo autor (Fase 0, seção 6).
 export function rotuloAutor(i: { modo: string; autor: { nome: string } | null; setores: { nome: string } | null }) {
   if (i.modo === "anonimo") return "Anônimo";

@@ -30,7 +30,7 @@ Para aplicar sem instalar nada: no painel do Supabase, abra **SQL Editor**, cole
 
 | Entrega | Conteúdo | Situação |
 | --- | --- | --- |
-| 1 | Base multiempresa, setores, colaboradores, papéis, login por adesivo QR + PIN | Em construção |
+| 1 | Base multiempresa, setores, colaboradores, papéis, login por adesivo QR + PIN | Concluída |
 | 2 | Envio de ideia (fotos, vídeos, áudio), protocolo, "Minhas ideias", modo offline do totem | — |
 | 3 | Triagem, pontuação, feedback automático, alertas e escalonamento de SLA | — |
 | 4 | Viabilidade, implantação, padronização (SOP), pontos, ranking, painel | — |

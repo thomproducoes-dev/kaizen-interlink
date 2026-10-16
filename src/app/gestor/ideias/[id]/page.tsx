@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Galeria } from "@/components/visualizador";
 import { CLASSE_TOM, MODOS, STATUS, formatarData, formatarDataHora, mmss, nomeCategoria, rotuloAutor } from "@/lib/ideias";
 import { criarClienteServidor } from "@/lib/supabase/server";
 
@@ -62,22 +63,10 @@ export default async function DetalheIdeia({ params }: { params: Promise<{ id: s
                 <audio src={a.url} controls className="h-10 min-w-0 flex-1" />
               </div>
             ))}
-          {anexos.some((a) => a.tipo !== "audio") && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {anexos
-                .filter((a) => a.tipo !== "audio" && a.url)
-                .map((a, k) =>
-                  a.tipo === "foto" ? (
-                    <a key={k} href={a.url} target="_blank" rel="noreferrer">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={a.url} alt={`Foto ${k + 1}`} className="aspect-square w-full rounded-lg border border-line object-cover" />
-                    </a>
-                  ) : (
-                    <video key={k} src={a.url} controls playsInline className="aspect-square w-full rounded-lg border border-line bg-black object-cover" />
-                  ),
-                )}
-            </div>
-          )}
+          <Galeria
+            className="grid grid-cols-2 gap-3 sm:grid-cols-3"
+            midias={anexos.filter((a) => a.tipo !== "audio" && a.url).map((a) => ({ tipo: a.tipo as "foto" | "video", url: a.url! }))}
+          />
         </section>
 
         <aside className="flex flex-col gap-4">

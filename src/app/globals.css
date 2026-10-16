@@ -77,3 +77,28 @@ body {
   color: var(--foreground);
   font-family: var(--font-barlow), system-ui, sans-serif;
 }
+
+/* Prévia das folhas A4 em telas estreitas: reduz a escala só na tela, nunca na impressão. */
+@media screen and (max-width: 900px) {
+  .folha {
+    zoom: 0.42;
+  }
+}
+
+/* Impressão das etiquetas: folha A4 sem margem do navegador; cada .folha vira uma página. */
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  .folha {
+    break-after: page;
+  }
+  .folha:last-child {
+    break-after: auto;
+  }
+}

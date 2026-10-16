@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Icone } from "@/components/icone";
+import { Galeria } from "@/components/visualizador";
 import { CLASSE_TOM, STATUS, formatarData, formatarDataHora, nomeCategoria } from "@/lib/ideias";
 import { criarClienteNavegador } from "@/lib/supabase/client";
 
@@ -116,22 +117,11 @@ export function DetalheIdeia({ id, euId, aoVoltar }: { id: string; euId: string;
             {d.ideia.maquinas ? ` · ${d.ideia.maquinas.nome}` : ""}
           </p>
           {d.ideia.texto && <p className="text-lg">{d.ideia.texto}</p>}
-          {d.midias.length > 0 && (
-            <div className="grid grid-cols-3 gap-2">
-              {d.midias
-                .filter((m) => m.tipo !== "audio")
-                .map((m, k) =>
-                  m.url ? (
-                    m.tipo === "foto" ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={k} src={m.url} alt="Anexo" className="aspect-square w-full rounded-xl border border-line object-cover" />
-                    ) : (
-                      <video key={k} src={m.url} controls playsInline className="aspect-square w-full rounded-xl border border-line bg-black object-cover" />
-                    )
-                  ) : null,
-                )}
-            </div>
-          )}
+          <Galeria
+            midias={d.midias
+              .filter((m) => m.tipo !== "audio" && m.url)
+              .map((m) => ({ tipo: m.tipo as "foto" | "video", url: m.url! }))}
+          />
           {d.midias
             .filter((m) => m.tipo === "audio" && m.url)
             .map((m, k) => (

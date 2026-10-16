@@ -54,7 +54,7 @@ export default async function GestorLayout({ children }: { children: React.React
           </form>
         </div>
       </header>
-      <div className="mx-auto max-w-6xl px-4 py-6">{children}</div>
+      <div className="mx-auto max-w-6xl px-4 py-6 print:m-0 print:max-w-none print:p-0">{children}</div>
     </div>
   );
 }

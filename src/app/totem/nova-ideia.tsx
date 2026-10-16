@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Icone } from "@/components/icone";
 import { LeitorQR } from "@/components/leitor-qr";
+import { Visualizador } from "@/components/visualizador";
 import { lerMaquina } from "@/lib/adesivo";
 import { enviarItem, ehFalhaDeRede, guardarNaFila, removerDaFila, type ItemFila } from "@/lib/fila-offline";
 import { CATEGORIAS, MODOS, mmss, type Modo } from "@/lib/ideias";
@@ -14,6 +15,51 @@ type Anexo = { id: string; tipo: "foto" | "video"; blob: Blob; url: string; dura
 type Audio = { blob: Blob; url: string; duracao: number };
 
 const btnNav = "flex-1 min-h-16 rounded-2xl text-xl font-semibold";
+
+function BotaoArquivo({
+  rotulo,
+  icone,
+  accept,
+  capture,
+  multiplo,
+  grande,
+  desativado,
+  className = "",
+  aoEscolher,
+}: {
+  rotulo: string;
+  icone: string;
+  accept: string;
+  capture?: boolean;
+  multiplo?: boolean;
+  grande: boolean;
+  desativado?: boolean;
+  className?: string;
+  aoEscolher: (l: FileList | null) => void;
+}) {
+  return (
+    <label
+      className={`relative flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-line bg-surface-2 text-center font-semibold ${
+        grande ? "min-h-36 text-xl" : "min-h-20 text-base"
+      } ${desativado ? "pointer-events-none opacity-50" : ""} ${className}`}
+    >
+      <Icone nome={icone} tamanho={grande ? 44 : 26} />
+      {rotulo}
+      <input
+        type="file"
+        accept={accept}
+        multiple={multiplo}
+        // "environment" abre direto a câmera traseira no celular e no tablet.
+        capture={capture ? "environment" : undefined}
+        className="absolute h-px w-px opacity-0"
+        onChange={(e) => {
+          aoEscolher(e.target.files);
+          e.target.value = "";
+        }}
+      />
+    </label>
+  );
+}
 
 export function NovaIdeia({
   ctx,
@@ -43,6 +89,7 @@ export function NovaIdeia({
   const [coautores, setCoautores] = useState<string[]>([]);
   const [busca, setBusca] = useState("");
   const [lendoMaquina, setLendoMaquina] = useState(false);
+  const [vendo, setVendo] = useState<number | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [processando, setProcessando] = useState(false);
   const [progresso, setProgresso] = useState<string | null>(null);
@@ -203,20 +250,22 @@ export function NovaIdeia({
           </p>
           {anexos.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
-              {anexos.map((a) => (
-                <div key={a.id} className="relative aspect-square overflow-hidden rounded-xl border border-line bg-surface-2">
-                  {a.tipo === "foto" ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={a.url} alt="Foto anexada" className="h-full w-full object-cover" />
-                  ) : (
-                    <video src={a.url} muted playsInline className="h-full w-full object-cover" />
-                  )}
+              {anexos.map((a, k) => (
+                <div key={a.id} className="relative aspect-square overflow-hidden rounded-xl border border-line bg-black">
+                  <button onClick={() => setVendo(k)} aria-label={`Ver anexo ${k + 1} em tela cheia`} className="h-full w-full">
+                    {a.tipo === "foto" ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={a.url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <video src={a.url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                    )}
+                  </button>
                   {a.tipo === "video" && (
-                    <span className="absolute bottom-1 left-1 rounded bg-black/65 px-1.5 text-xs text-white">{mmss(a.duracao ?? 0)}</span>
+                    <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/65 px-1.5 text-xs text-white">▶ {mmss(a.duracao ?? 0)}</span>
                   )}
                   <button
                     onClick={() => remover(a.id)}
-                    aria-label="Remover anexo"
+                    aria-label={`Remover anexo ${k + 1}`}
                     className="absolute right-1 top-1 h-9 w-9 rounded-full bg-black/65 text-xl leading-none text-white"
                   >
                     ×
@@ -225,28 +274,48 @@ export function NovaIdeia({
               ))}
             </div>
           )}
-          {anexos.length < ctx.config.maxAnexos && (
-            <label
-              className={`relative flex cursor-pointer items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-line bg-surface-2 font-semibold ${
-                anexos.length ? "min-h-24 text-lg" : "min-h-48 flex-col text-xl"
-              }`}
-            >
-              <Icone nome="camera" tamanho={anexos.length ? 28 : 48} />
-              <span>{processando ? "Processando…" : anexos.length ? "Adicionar mais" : "Tirar fotos ou gravar vídeo"}</span>
-              <span className="text-sm font-normal text-muted">
-                {anexos.length} de {ctx.config.maxAnexos} anexos
-              </span>
-              <input
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                className="absolute h-px w-px opacity-0"
-                onChange={(e) => {
-                  adicionar(e.target.files);
-                  e.target.value = "";
-                }}
-              />
-            </label>
+          {anexos.length < ctx.config.maxAnexos ? (
+            <>
+              {/* Botões separados: no Android, um campo único "fotos ou vídeos, vários" abre só a galeria. */}
+              <div className={`grid gap-2 ${anexos.length ? "grid-cols-3" : "grid-cols-2"}`}>
+                <BotaoArquivo
+                  rotulo="Tirar foto"
+                  icone="camera"
+                  accept="image/*"
+                  capture
+                  grande={!anexos.length}
+                  aoEscolher={adicionar}
+                  desativado={processando}
+                />
+                <BotaoArquivo
+                  rotulo="Gravar vídeo"
+                  icone="video"
+                  accept="video/*"
+                  capture
+                  grande={!anexos.length}
+                  aoEscolher={adicionar}
+                  desativado={processando}
+                />
+                <BotaoArquivo
+                  rotulo="Da galeria"
+                  icone="galeria"
+                  accept="image/*,video/*"
+                  multiplo
+                  grande={false}
+                  aoEscolher={adicionar}
+                  desativado={processando}
+                  className={anexos.length ? "" : "col-span-2"}
+                />
+              </div>
+              <p className="text-center text-sm text-muted">
+                {processando ? "Processando…" : `${anexos.length} de ${ctx.config.maxAnexos} anexos`}
+              </p>
+            </>
+          ) : (
+            <p className="text-center text-muted">Limite de {ctx.config.maxAnexos} anexos atingido. Remova um para trocar.</p>
+          )}
+          {vendo != null && (
+            <Visualizador midias={anexos.map((a) => ({ tipo: a.tipo, url: a.url }))} indice={vendo} aoFechar={() => setVendo(null)} />
           )}
         </>
       )}

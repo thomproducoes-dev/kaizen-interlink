@@ -102,3 +102,18 @@ body {
     break-after: auto;
   }
 }
+
+/* Confetes da primeira ideia no totem. */
+@keyframes cair {
+  0% { transform: translateY(-20px); opacity: 1; }
+  100% { transform: translateY(520px); opacity: 0; }
+}
+.confete {
+  animation-name: cair;
+  animation-timing-function: ease-in;
+  animation-iteration-count: 2;
+  animation-fill-mode: both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .confete { display: none; }
+}

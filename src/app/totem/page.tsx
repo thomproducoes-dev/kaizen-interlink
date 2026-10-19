@@ -10,6 +10,7 @@ import { formatarData } from "@/lib/ideias";
 import { criarClienteNavegador } from "@/lib/supabase/client";
 import { carregarContexto, type Contexto } from "./contexto";
 import { DetalheIdeia, MinhasIdeias } from "./minhas-ideias";
+import { BoasVindas } from "./boas-vindas";
 import { Mural } from "./mural";
 import { NovaIdeia } from "./nova-ideia";
 
@@ -35,6 +36,7 @@ function Totem() {
   const [pontos, setPontos] = useState<{ total: number; nivel: string } | null>(null);
   const [maquina, setMaquina] = useState<string | null>(() => lerMaquina(`/m/${params.get("maquina") ?? ""}`));
   const [protocolo, setProtocolo] = useState<{ protocolo: string; prazo: string } | null>(null);
+  const [primeira, setPrimeira] = useState<{ limite: number } | null>(null);
   const [ideiaAberta, setIdeiaAberta] = useState<string | null>(null);
   const [pendentes, setPendentes] = useState(0);
   const [numeros, setNumeros] = useState<{ ideias_mes: number; participantes_mes: number; padronizadas: number } | null>(null);
@@ -55,6 +57,7 @@ function Totem() {
     setErro(null);
     setMaquina(null);
     setProtocolo(null);
+    setPrimeira(null);
     setIdeiaAberta(null);
     setTela("ler");
   }, []);
@@ -344,10 +347,16 @@ function Totem() {
               ctx={ctx}
               maquinaInicial={maquina}
               setOcupado={setOcupado}
-              aoEnviar={(r) => {
+              aoEnviar={async (r) => {
                 setProtocolo(r);
                 setMaquina(null);
+                setPrimeira(null);
                 setTela("protocolo");
+                // Primeira ideia como autor (coautorias não contam): o totem comemora e explica os pontos.
+                const sb = criarClienteNavegador();
+                const [{ data: minhas }, { data: mes }] = await Promise.all([sb.rpc("minhas_ideias"), sb.rpc("ideias_no_mes")]);
+                const comoAutor = ((minhas ?? []) as { sou_coautor: boolean }[]).filter((i) => !i.sou_coautor).length;
+                if (comoAutor === 1) setPrimeira({ limite: ((mes ?? []) as { limite: number }[])[0]?.limite ?? 10 });
               }}
               aoGuardar={() => {
                 setMaquina(null);
@@ -372,6 +381,7 @@ function Totem() {
               <br />
               Você recebe um aviso a cada mudança.
             </p>
+            {primeira && ctx && <BoasVindas nome={ctx.eu.nome.split(" ")[0]} limiteMensal={primeira.limite} />}
             <div className="mt-auto flex w-full gap-3">
               <button onClick={() => setTela("minhas")} className="min-h-16 flex-1 rounded-2xl border border-line bg-surface-2 text-xl font-semibold">
                 Minhas ideias

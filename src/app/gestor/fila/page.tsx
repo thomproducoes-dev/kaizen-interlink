@@ -40,7 +40,7 @@ function diasAtras(n: number) {
 }
 
 // Compara sem acento e sem diferença de maiúsculas: "seguranca" encontra "Segurança".
-const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const normalizar = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 const unicos = (l: (string | null)[]) => Array.from(new Set(l.filter((x): x is string => !!x))).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
 type Busca = { f?: string; q?: string; tipo?: string; setor?: string; maquina?: string; autor?: string };

@@ -87,12 +87,12 @@ export function DetalheIdeia({ id, euId, empresaId, aoVoltar }: { id: string; eu
   useEffect(() => {
     const sb = criarClienteNavegador();
     (async () => {
-      const [ideia, eventos, midias, mensagens, selada] = await Promise.all([
-        sb.from("ideias").select("protocolo, status, categoria, texto, prazo_atual, autor_id, modo, setores(nome), maquinas(nome)").eq("id", id).single(),
+      const [ideia, eventos, midias, mensagens, souAutor] = await Promise.all([
+        sb.from("ideias").select("protocolo, status, categoria, texto, prazo_atual, modo, setores(nome), maquinas(nome)").eq("id", id).single(),
         sb.from("ideia_eventos").select("para, por_texto, nota, criado_em").eq("ideia_id", id).order("criado_em", { ascending: false }),
         sb.from("ideia_midias").select("tipo, caminho, duracao_s").eq("ideia_id", id).order("caminho"),
         sb.from("notificacoes").select("texto, criada_em").eq("ideia_id", id).eq("colaborador_id", euId).order("criada_em", { ascending: false }),
-        sb.from("ideia_autoria_selada").select("colaborador_id").eq("ideia_id", id),
+        sb.rpc("sou_autor", { p_ideia: id }),
       ]);
       if (ideia.error) return setErro(true);
       const caminhos = (midias.data ?? []).map((m) => m.caminho);
@@ -102,7 +102,7 @@ export function DetalheIdeia({ id, euId, empresaId, aoVoltar }: { id: string; eu
         eventos: eventos.data ?? [],
         midias: (midias.data ?? []).map((m, k) => ({ tipo: m.tipo, duracao_s: m.duracao_s, url: assinadas[k]?.signedUrl ?? null })),
         mensagens: mensagens.data ?? [],
-        souAutor: ideia.data.autor_id === euId || (selada.data ?? []).some((s) => s.colaborador_id === euId),
+        souAutor: souAutor.data === true,
       });
       await sb.from("notificacoes").update({ lida_em: new Date().toISOString() }).eq("ideia_id", id).eq("colaborador_id", euId).is("lida_em", null);
     })();

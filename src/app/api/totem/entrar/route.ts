@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { lerAdesivo } from "@/lib/adesivo";
 import { criarClienteAdmin } from "@/lib/supabase/admin";
@@ -83,10 +84,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "erro" }, { status: 500 });
   }
 
+  // Totem: uma segunda sessão, só para a fila offline. Ela continua valendo depois do "Sair",
+  // então uma ideia guardada sem internet ainda sobe quando a rede voltar.
+  let fila: { access_token: string; refresh_token: string } | null = null;
+  if (corpo?.fila === true) {
+    const { data: link2 } = await admin.auth.admin.generateLink({ type: "magiclink", email });
+    if (link2?.properties?.hashed_token) {
+      const avulso = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data: s2 } = await avulso.auth.verifyOtp({ type: "email", token_hash: link2.properties.hashed_token });
+      if (s2.session) fila = { access_token: s2.session.access_token, refresh_token: s2.session.refresh_token };
+    }
+  }
+
   const setor = (colaborador.setores as { nome: string } | { nome: string }[] | null);
   return NextResponse.json({
     status: "ok",
     nome: colaborador.nome,
     setor: Array.isArray(setor) ? setor[0]?.nome ?? null : setor?.nome ?? null,
+    fila,
   });
 }

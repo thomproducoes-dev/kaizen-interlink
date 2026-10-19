@@ -198,7 +198,8 @@ export function NovaIdeia({
       criadoEm: Date.now(),
       empresaId: ctx.eu.empresaId,
       autorNome: ctx.eu.nome,
-      sessao: { access_token: session.access_token, refresh_token: session.refresh_token },
+      // A fila usa a sessão própria dela: se a ideia ficar guardada, ainda sobe depois do "Sair".
+      sessao: ctx.filaSessao ?? { access_token: session.access_token, refresh_token: session.refresh_token },
       dados: { modo, setorId: setorId!, maquinaId, categoria: categoria!, texto: texto.trim(), coautores, canal: "totem" },
       arquivos: [
         ...anexos.map((a) => ({ tipo: a.tipo, blob: a.blob, duracao: a.duracao })),

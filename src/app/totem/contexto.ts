@@ -7,6 +7,8 @@ export type Contexto = {
   setores: { id: string; nome: string }[];
   maquinas: { id: string; nome: string; setorId: string; codigo: string }[];
   colegas: { id: string; nome: string; setorId: string | null }[];
+  // Sessão própria da fila offline (vem do login do totem); sobrevive ao "Sair".
+  filaSessao?: { access_token: string; refresh_token: string } | null;
 };
 
 export async function carregarContexto(sb: SupabaseClient): Promise<Contexto> {

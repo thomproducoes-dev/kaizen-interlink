@@ -5,7 +5,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Icone } from "@/components/icone";
 import { LeitorQR } from "@/components/leitor-qr";
 import { lerAdesivo, lerMaquina } from "@/lib/adesivo";
-import { listarFila, processarFila } from "@/lib/fila-offline";
+import { adotarSessaoDaFila, listarFila, processarFila } from "@/lib/fila-offline";
 import { formatarData } from "@/lib/ideias";
 import { MENSAGEM_TROCA, validarPin } from "@/lib/pin";
 import { criarClienteNavegador } from "@/lib/supabase/client";
@@ -44,6 +44,7 @@ function Totem() {
   const [primeira, setPrimeira] = useState<{ limite: number } | null>(null);
   const [ideiaAberta, setIdeiaAberta] = useState<string | null>(null);
   const [pendentes, setPendentes] = useState(0);
+  const [comErro, setComErro] = useState(0);
   const [numeros, setNumeros] = useState<{ ideias_mes: number; participantes_mes: number; padronizadas: number } | null>(null);
   const [restante, setRestante] = useState(60);
   const [codigo, setCodigo] = useState("");
@@ -54,7 +55,7 @@ function Totem() {
   }, []);
 
   const sair = useCallback(async () => {
-    // "local": encerra só neste aparelho, para a fila ainda conseguir enviar ideias pendentes deste autor.
+    // Encerra a sessão da tela. A fila offline usa outra sessão (filaSessao), que continua valendo.
     await criarClienteNavegador().auth.signOut({ scope: "local" });
     setCtx(null);
     setToken(null);
@@ -87,10 +88,14 @@ function Totem() {
   }, []);
 
   // Fila de envio: tenta ao abrir, quando a rede volta e a cada 30 s.
+  // Pede ao navegador para não apagar os dados do totem quando faltar espaço.
   useEffect(() => {
+    navigator.storage?.persist?.().catch(() => false);
     const rodar = async () => {
       await processarFila().catch(() => 0);
-      setPendentes((await listarFila().catch(() => [])).length);
+      const lista = await listarFila().catch(() => []);
+      setPendentes(lista.length);
+      setComErro(lista.filter((i) => i.tentativas >= 3).length);
     };
     rodar();
     window.addEventListener("online", rodar);
@@ -158,7 +163,7 @@ function Totem() {
       const r = await fetch("/api/totem/entrar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qr: token, pin: pinCompleto, novoPin }),
+        body: JSON.stringify({ qr: token, pin: pinCompleto, novoPin, fila: true }),
       });
       const dados = await r.json().catch(() => ({ status: "erro" }));
       if (dados.status === "trocar_pin" || dados.status in MENSAGEM_TROCA) {
@@ -171,7 +176,8 @@ function Totem() {
       } else if (dados.status === "ok") {
         const sb = criarClienteNavegador();
         const contexto = await carregarContexto(sb);
-        setCtx(contexto);
+        if (dados.fila) await adotarSessaoDaFila(dados.fila).catch(() => undefined);
+        setCtx({ ...contexto, filaSessao: dados.fila ?? null });
         atualizarNovidades();
         setTela(maquina && contexto.maquinas.some((x) => x.codigo === maquina) ? "nova" : "inicio");
       } else {
@@ -265,6 +271,8 @@ function Totem() {
             {pendentes > 0 && (
               <p className="rounded-xl bg-warn-bg px-4 py-2 text-sm font-semibold text-warn">
                 {pendentes} ideia{pendentes > 1 ? "s" : ""} guardada{pendentes > 1 ? "s" : ""} neste totem, aguardando internet.
+                {comErro > 0 &&
+                  ` ${comErro} não ${comErro > 1 ? "conseguiram" : "conseguiu"} subir: o autor pode entrar de novo neste totem para liberar o envio, ou avise o gestor.`}
               </p>
             )}
             <form

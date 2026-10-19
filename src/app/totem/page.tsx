@@ -37,6 +37,7 @@ function Totem() {
   const [protocolo, setProtocolo] = useState<{ protocolo: string; prazo: string } | null>(null);
   const [ideiaAberta, setIdeiaAberta] = useState<string | null>(null);
   const [pendentes, setPendentes] = useState(0);
+  const [numeros, setNumeros] = useState<{ ideias_mes: number; participantes_mes: number; padronizadas: number } | null>(null);
   const [restante, setRestante] = useState(60);
   const [codigo, setCodigo] = useState("");
   const ultimaAcao = useRef(0);
@@ -61,6 +62,17 @@ function Totem() {
   // O totem sempre começa sem sessão aberta.
   useEffect(() => {
     criarClienteNavegador().auth.signOut({ scope: "local" });
+  }, []);
+
+  // Contador da tela inicial (engajamento): números do mês, nunca nomes. Atualiza a cada 5 minutos.
+  useEffect(() => {
+    const carregar = () =>
+      criarClienteNavegador()
+        .rpc("estatisticas_totem", { p_slug: process.env.NEXT_PUBLIC_EMPRESA_SLUG || "interlink" })
+        .then(({ data }) => setNumeros(((data ?? []) as { ideias_mes: number; participantes_mes: number; padronizadas: number }[])[0] ?? null));
+    carregar();
+    const id = setInterval(carregar, 5 * 60 * 1000);
+    return () => clearInterval(id);
   }, []);
 
   // Fila de envio: tenta ao abrir, quando a rede volta e a cada 30 s.
@@ -193,6 +205,22 @@ function Totem() {
           <section className="flex flex-col items-center gap-5 text-center">
             <h1 className="font-display text-4xl font-bold">Tem uma ideia de melhoria?</h1>
             <p className="text-lg text-muted">Mostre seu adesivo QR para a câmera.</p>
+            {numeros && numeros.ideias_mes > 0 && (
+              <div className="grid w-full grid-cols-3 gap-2 text-center">
+                <span className="rounded-xl bg-tint px-2 py-2">
+                  <b className="block font-display text-3xl">{numeros.ideias_mes}</b>
+                  <span className="text-sm">ideia{numeros.ideias_mes === 1 ? "" : "s"} este mês</span>
+                </span>
+                <span className="rounded-xl bg-tint px-2 py-2">
+                  <b className="block font-display text-3xl">{numeros.participantes_mes}</b>
+                  <span className="text-sm">colega{numeros.participantes_mes === 1 ? "" : "s"} participando</span>
+                </span>
+                <span className="rounded-xl bg-tint px-2 py-2">
+                  <b className="block font-display text-3xl">{numeros.padronizadas}</b>
+                  <span className="text-sm">já viraram padrão</span>
+                </span>
+              </div>
+            )}
             {maquina && (
               <p className="rounded-xl bg-info-bg px-4 py-2 font-semibold text-info">
                 Etiqueta de máquina lida. Agora mostre seu adesivo pessoal.
@@ -200,6 +228,7 @@ function Totem() {
             )}
             <LeitorQR onLer={aoLer} />
             {erro && <p className="rounded-xl bg-bad-bg px-4 py-3 font-semibold text-bad">{erro}</p>}
+            <p className="rounded-xl bg-signal px-4 py-2 font-display text-xl font-bold text-signal-ink">Seus pontos podem virar prêmios. Aguarde!</p>
             {pendentes > 0 && (
               <p className="rounded-xl bg-warn-bg px-4 py-2 text-sm font-semibold text-warn">
                 {pendentes} ideia{pendentes > 1 ? "s" : ""} guardada{pendentes > 1 ? "s" : ""} neste totem, aguardando internet.

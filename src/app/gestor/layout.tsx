@@ -54,6 +54,9 @@ export default async function GestorLayout({ children }: { children: React.React
             <Link href="/gestor/fila" className={link}>
               Fila de ideias
             </Link>
+            <Link href="/gestor/painel" className={link}>
+              Painel
+            </Link>
             {gestor && (
               <>
                 <Link href="/gestor/colaboradores" className={link}>
@@ -64,6 +67,9 @@ export default async function GestorLayout({ children }: { children: React.React
                 </Link>
                 <Link href="/gestor/maquinas" className={link}>
                   Máquinas
+                </Link>
+                <Link href="/gestor/configuracoes" className={link}>
+                  Configurações
                 </Link>
               </>
             )}

@@ -1,11 +1,23 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Galeria } from "@/components/visualizador";
-import { decideTriagem, meusPapeis } from "@/lib/gestao";
+import { decideTriagem, ehGestor, meusPapeis } from "@/lib/gestao";
 import { CLASSE_SITUACAO, CLASSE_TOM, MODOS, STATUS, formatarData, formatarDataHora, mmss, nomeCategoria, textoPrazo } from "@/lib/ideias";
 import { criarClienteServidor } from "@/lib/supabase/server";
 import { retomar } from "./acoes";
 import { PainelTriagem } from "./painel";
+import { PainelInicio, PainelPadronizacao, PainelVerificacao, PainelViabilidade, type ValoresUnitarios } from "./painel-etapas";
+
+const moeda = (v: number | string) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+function Etapa({ titulo, pode, quem, children }: { titulo: string; pode: boolean; quem: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-xl border-2 border-accent bg-surface p-5">
+      <h2 className="font-display text-2xl font-bold">{titulo}</h2>
+      {pode ? <div className="mt-3">{children}</div> : <p className="mt-2 text-muted">Esta etapa é registrada por {quem}.</p>}
+    </section>
+  );
+}
 
 type Linha = {
   id: string;
@@ -31,7 +43,13 @@ export default async function DetalheIdeia({ params }: { params: Promise<{ id: s
   const supabase = await criarClienteServidor();
   const [{ data: fila }, { data: extra }, { data: eventos }, { data: midias }, { data: coautores }, { data: empresa }, papeis] = await Promise.all([
     supabase.rpc("fila_ideias", { p_id: id }),
-    supabase.from("ideias").select("canal, notas, custo_estimado, motivo_espera, revisao").eq("id", id).maybeSingle(),
+    supabase
+      .from("ideias")
+      .select(
+        "canal, notas, custo_estimado, motivo_espera, revisao, ganho_estimado, roi, payback_meses, linha_base, ganho_verificado, ganho_qualitativo, sop_codigo, sop_revisao, padronizada_em",
+      )
+      .eq("id", id)
+      .maybeSingle(),
     supabase.from("ideia_eventos").select("para, por_texto, nota, criado_em").eq("ideia_id", id).order("criado_em", { ascending: false }),
     supabase.from("ideia_midias").select("tipo, caminho, duracao_s, versao").eq("ideia_id", id).order("versao").order("caminho"),
     supabase.from("ideia_coautores").select("colaboradores(nome)").eq("ideia_id", id),
@@ -49,8 +67,19 @@ export default async function DetalheIdeia({ params }: { params: Promise<{ id: s
     i.modo === "identificado"
       ? ((coautores ?? []) as unknown as { colaboradores: { nome: string } | null }[]).map((c) => c.colaboradores?.nome).filter(Boolean)
       : [];
-  const config = (empresa?.config ?? {}) as { teto_implantacao_direta?: number; pesos?: Record<string, number> };
+  const config = (empresa?.config ?? {}) as {
+    teto_implantacao_direta?: number;
+    pesos?: Record<string, number>;
+    valores_unitarios?: Partial<ValoresUnitarios>;
+  };
+  const valores: ValoresUnitarios = {
+    custo_minuto: config.valores_unitarios?.custo_minuto ?? null,
+    hora_homem: config.valores_unitarios?.hora_homem ?? null,
+    m2_chapa: config.valores_unitarios?.m2_chapa ?? null,
+    kwh: config.valores_unitarios?.kwh ?? null,
+  };
   const podeDecidir = decideTriagem(papeis);
+  const eng = papeis.includes("engenharia") || ehGestor(papeis);
 
   return (
     <div className="flex flex-col gap-5">
@@ -125,9 +154,56 @@ export default async function DetalheIdeia({ params }: { params: Promise<{ id: s
             </section>
           )}
 
-          {["em_viabilidade", "aprovada", "em_implantacao", "padronizando"].includes(i.status) && (
-            <section className="rounded-xl border border-dashed border-line bg-surface p-5 text-muted">
-              Viabilidade econômica, implantação e padronização chegam na Entrega 4.
+          {i.status === "em_viabilidade" && (
+            <Etapa titulo="Viabilidade econômica" pode={eng} quem="a engenharia">
+              <PainelViabilidade id={i.id} valores={valores} custoInicial={extra?.custo_estimado ?? null} />
+            </Etapa>
+          )}
+          {i.status === "aprovada" && (
+            <Etapa titulo="Iniciar a implantação" pode={eng || papeis.includes("comite") || papeis.includes("encarregado")} quem="o encarregado, o comitê ou a engenharia">
+              <PainelInicio id={i.id} />
+            </Etapa>
+          )}
+          {i.status === "em_implantacao" && (
+            <Etapa titulo="Verificação no posto (PDCA)" pode={eng || papeis.includes("encarregado")} quem="a engenharia ou o encarregado do setor">
+              <PainelVerificacao id={i.id} ganhoEstimado={extra?.ganho_estimado ?? null} />
+            </Etapa>
+          )}
+          {i.status === "padronizando" && (
+            <Etapa titulo="Padronização (SOP)" pode={eng} quem="a engenharia">
+              <PainelPadronizacao id={i.id} />
+            </Etapa>
+          )}
+          {i.status === "padronizada" && (
+            <section className="rounded-xl border-2 border-good bg-surface p-5">
+              <h2 className="font-display text-2xl font-bold">Ideia padronizada</h2>
+              <dl className="mt-3 grid grid-cols-[150px_1fr] gap-x-3 gap-y-2 text-sm">
+                <dt className="text-muted">Procedimento</dt>
+                <dd className="font-semibold">
+                  {extra?.sop_codigo}
+                  {extra?.sop_revisao ? ` rev. ${extra.sop_revisao}` : ""}
+                </dd>
+                {extra?.ganho_verificado != null && (
+                  <>
+                    <dt className="text-muted">Ganho verificado</dt>
+                    <dd className="font-semibold">{moeda(extra.ganho_verificado)} por ano</dd>
+                  </>
+                )}
+                {extra?.linha_base && (
+                  <>
+                    <dt className="text-muted">Linha de base</dt>
+                    <dd>{extra.linha_base}</dd>
+                  </>
+                )}
+                {extra?.ganho_qualitativo && (
+                  <>
+                    <dt className="text-muted">Ganho qualitativo</dt>
+                    <dd>{extra.ganho_qualitativo}</dd>
+                  </>
+                )}
+                <dt className="text-muted">Concluída em</dt>
+                <dd>{extra?.padronizada_em ? formatarDataHora(extra.padronizada_em) : "—"}</dd>
+              </dl>
             </section>
           )}
         </div>
@@ -170,8 +246,22 @@ export default async function DetalheIdeia({ params }: { params: Promise<{ id: s
             )}
             {extra?.custo_estimado != null && (
               <>
-                <dt className="text-muted">Custo estimado</dt>
-                <dd>{Number(extra.custo_estimado).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</dd>
+                <dt className="text-muted">Custo</dt>
+                <dd>{moeda(extra.custo_estimado)}</dd>
+              </>
+            )}
+            {extra?.ganho_estimado != null && (
+              <>
+                <dt className="text-muted">Ganho estimado</dt>
+                <dd>{moeda(extra.ganho_estimado)} por ano</dd>
+              </>
+            )}
+            {extra?.roi != null && (
+              <>
+                <dt className="text-muted">ROI · payback</dt>
+                <dd>
+                  {Math.round(Number(extra.roi)).toLocaleString("pt-BR")}% · {String(extra.payback_meses).replace(".", ",")} meses
+                </dd>
               </>
             )}
             <dt className="text-muted">Com quem</dt>

@@ -10,9 +10,10 @@ import { formatarData } from "@/lib/ideias";
 import { criarClienteNavegador } from "@/lib/supabase/client";
 import { carregarContexto, type Contexto } from "./contexto";
 import { DetalheIdeia, MinhasIdeias } from "./minhas-ideias";
+import { Mural } from "./mural";
 import { NovaIdeia } from "./nova-ideia";
 
-type Tela = "ler" | "pin" | "inicio" | "nova" | "protocolo" | "guardada" | "minhas" | "detalhe";
+type Tela = "ler" | "pin" | "inicio" | "nova" | "protocolo" | "guardada" | "minhas" | "detalhe" | "mural";
 
 export default function PaginaTotem() {
   return (
@@ -31,6 +32,7 @@ function Totem() {
   const [enviando, setEnviando] = useState(false);
   const [ctx, setCtx] = useState<Contexto | null>(null);
   const [novidades, setNovidades] = useState(0);
+  const [pontos, setPontos] = useState<{ total: number; nivel: string } | null>(null);
   const [maquina, setMaquina] = useState<string | null>(() => lerMaquina(`/m/${params.get("maquina") ?? ""}`));
   const [protocolo, setProtocolo] = useState<{ protocolo: string; prazo: string } | null>(null);
   const [ideiaAberta, setIdeiaAberta] = useState<string | null>(null);
@@ -101,6 +103,9 @@ function Totem() {
   const atualizarNovidades = useCallback(async () => {
     const { data } = await criarClienteNavegador().rpc("minhas_ideias");
     setNovidades(((data ?? []) as { novidades: number }[]).reduce((a, i) => a + i.novidades, 0));
+    const { data: p } = await criarClienteNavegador().rpc("meus_pontos");
+    const meu = ((p ?? []) as { total: number; nivel: string }[])[0];
+    setPontos(meu ? { total: meu.total, nivel: meu.nivel } : null);
   }, []);
 
   const aoLer = useCallback((texto: string) => {
@@ -258,7 +263,10 @@ function Totem() {
           <section className="flex flex-col gap-4">
             <div>
               <h1 className="font-display text-4xl font-bold">Bom trabalho, {ctx.eu.nome.split(" ")[0]}.</h1>
-              <p className="text-lg text-muted">{ctx.setores.find((s) => s.id === ctx.eu.setorId)?.nome ?? ""}</p>
+              <p className="text-lg text-muted">
+                {ctx.setores.find((s) => s.id === ctx.eu.setorId)?.nome ?? ""}
+                {pontos ? ` · ${pontos.total} pontos em ${new Date().getFullYear()} · nível ${pontos.nivel}` : ""}
+              </p>
             </div>
             <button
               onClick={() => setTela("nova")}
@@ -284,6 +292,16 @@ function Totem() {
                   {novidades} nova{novidades > 1 ? "s" : ""}
                 </span>
               )}
+            </button>
+            <button
+              onClick={() => setTela("mural")}
+              className="flex min-h-20 items-center gap-4 rounded-2xl border border-line bg-surface-2 px-6 text-left font-display text-2xl font-bold"
+            >
+              <Icone nome="organizacao" tamanho={30} />
+              <span>
+                Mural e ranking
+                <small className="block font-sans text-base font-medium text-muted">Ideias que viraram padrão na fábrica</small>
+              </span>
             </button>
           </section>
         )}
@@ -348,6 +366,8 @@ function Totem() {
             </button>
           </section>
         )}
+
+        {tela === "mural" && <Mural aoVoltar={() => setTela("inicio")} />}
 
         {tela === "minhas" && (
           <MinhasIdeias

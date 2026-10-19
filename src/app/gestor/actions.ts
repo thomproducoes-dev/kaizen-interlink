@@ -132,3 +132,26 @@ export async function salvarPapeis(form: FormData) {
   if (incluir.length) await supabase.from("colaborador_papeis").insert(incluir.map((papel) => ({ colaborador_id: id, papel })));
   revalidatePath("/gestor/colaboradores");
 }
+
+// Valores unitários do cálculo de ganho e teto da triagem (Fase 0, seções 5 e 10).
+export async function salvarConfiguracoes(_: Resultado, form: FormData): Promise<Resultado> {
+  const ler = (k: string): number | null | "erro" => {
+    const s = String(form.get(k) ?? "").trim();
+    if (!s) return null;
+    const n = parseFloat(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s);
+    return isFinite(n) && n >= 0 ? n : "erro";
+  };
+  const valores = Object.fromEntries(["custo_minuto", "hora_homem", "m2_chapa", "kwh"].map((k) => [k, ler(k)]));
+  const teto = ler("teto");
+  if (Object.values(valores).includes("erro") || teto === "erro") return { ok: false, mensagem: "Use apenas números, com vírgula para os centavos." };
+  if (teto == null) return { ok: false, mensagem: "Informe o teto para implantação direta." };
+
+  const supabase = await criarClienteServidor();
+  const { data: emp } = await supabase.from("empresas").select("id, config").single();
+  if (!emp) return { ok: false, mensagem: "Empresa não encontrada." };
+  const config = { ...(emp.config as Record<string, unknown>), valores_unitarios: valores, teto_implantacao_direta: teto };
+  const { error } = await supabase.from("empresas").update({ config }).eq("id", emp.id);
+  if (error) return { ok: false, mensagem: "Não foi possível salvar. Tente de novo." };
+  revalidatePath("/gestor/configuracoes");
+  return { ok: true, mensagem: "Configurações salvas." };
+}

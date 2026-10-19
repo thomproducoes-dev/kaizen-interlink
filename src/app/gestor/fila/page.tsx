@@ -29,6 +29,7 @@ const FILTROS: Record<string, { n: string; status: string[] | null }> = {
   implantacao: { n: "Implantação", status: ["aprovada", "em_implantacao", "padronizando"] },
   espera: { n: "Em espera", status: ["em_espera"] },
   encerradas: { n: "Encerradas", status: ["reprovada", "padronizada"] },
+  reprovadas: { n: "Reprovadas", status: ["reprovada"] },
   todas: { n: "Todas", status: null },
 };
 

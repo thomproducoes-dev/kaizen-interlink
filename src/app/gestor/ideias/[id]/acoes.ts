@@ -116,3 +116,42 @@ export async function avancarEtapa(_: Resultado, form: FormData): Promise<Result
   revalidatePath("/gestor/fila");
   return { ok: true, mensagem };
 }
+
+// Ajustes do gestor do programa (corrigir dados / reabrir etapa). Só o gestor; o banco confere e registra tudo.
+export async function ajustar(_: Resultado, form: FormData): Promise<Resultado> {
+  const id = String(form.get("id") ?? "");
+  const campos = [
+    "categoria", "setor_id", "maquina_id", "texto", "nota", "custo_estimado", "ganho_estimado", "ganho_verificado",
+    "ganho_qualitativo", "linha_base", "sop_codigo", "sop_revisao", "responsavel_implantacao", "prazo_atual", "prazo_implantacao",
+  ];
+  const numericos = ["nota", "custo_estimado", "ganho_estimado", "ganho_verificado"];
+  const dados = Object.fromEntries(
+    campos.filter((c) => form.has(c)).map((c) => [c, numericos.includes(c) ? num(form.get(c)) : String(form.get(c) ?? "").trim()]),
+  );
+  const supabase = await criarClienteServidor();
+  const { data, error } = await supabase.rpc("ajustar_ideia", {
+    p_ideia: id,
+    p_dados: dados,
+    p_motivo: String(form.get("motivo") ?? ""),
+    p_avisar: form.get("avisar") === "on",
+  });
+  if (error) return { ok: false, mensagem: error.message };
+  revalidatePath(`/gestor/ideias/${id}`);
+  revalidatePath("/gestor/fila");
+  return { ok: true, mensagem: data ? `${data} campo${data === 1 ? "" : "s"} ajustado${data === 1 ? "" : "s"} e registrado${data === 1 ? "" : "s"}.` : "Nada mudou: os valores já eram esses." };
+}
+
+export async function reabrir(_: Resultado, form: FormData): Promise<Resultado> {
+  const id = String(form.get("id") ?? "");
+  const supabase = await criarClienteServidor();
+  const { error } = await supabase.rpc("reabrir_ideia", {
+    p_ideia: id,
+    p_para: String(form.get("para") ?? ""),
+    p_motivo: String(form.get("motivo") ?? ""),
+    p_avisar: form.get("avisar") === "on",
+  });
+  if (error) return { ok: false, mensagem: error.message };
+  revalidatePath(`/gestor/ideias/${id}`);
+  revalidatePath("/gestor/fila");
+  return { ok: true, mensagem: "Etapa reaberta e registrada." };
+}

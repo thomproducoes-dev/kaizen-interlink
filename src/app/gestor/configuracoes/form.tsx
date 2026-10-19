@@ -13,7 +13,7 @@ const CAMPOS = [
   { k: "kwh", n: "Tarifa de energia (R$/kWh)", d: "Usado em ganhos de energia." },
 ];
 
-export function FormConfiguracoes({ teto, valores }: { teto: number; valores: Record<string, number | null> }) {
+export function FormConfiguracoes({ teto, valores, limite }: { teto: number; valores: Record<string, number | null>; limite: number }) {
   const [estado, acao, pendente] = useActionState(salvarConfiguracoes, null);
   return (
     <form
@@ -39,6 +39,12 @@ export function FormConfiguracoes({ teto, valores }: { teto: number; valores: Re
         Teto para implantação direta pelo setor (R$)
         <input name="teto" inputMode="decimal" defaultValue={fmt(teto)} className={campo} />
         <span className="text-xs font-normal text-muted">Acima disso, a ideia vai obrigatoriamente para a engenharia.</span>
+      </label>
+      <h2 className="font-display text-2xl font-bold">Pontos</h2>
+      <label className="flex max-w-xs flex-col gap-1 text-sm font-semibold">
+        Limite de ideias pontuadas por pessoa no mês
+        <input name="limite_mensal" type="number" min={1} max={100} defaultValue={limite} className={campo} />
+        <span className="text-xs font-normal text-muted">Passado o limite, a ideia é registrada e analisada normalmente, mas não soma pontos.</span>
       </label>
       {estado && <p className={`font-semibold ${estado.ok ? "text-good" : "text-bad"}`}>{estado.mensagem}</p>}
       <button disabled={pendente} className="self-start rounded-lg bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50">

@@ -90,6 +90,14 @@ export function NovaIdeia({
   const [busca, setBusca] = useState("");
   const [lendoMaquina, setLendoMaquina] = useState(false);
   const [vendo, setVendo] = useState<number | null>(null);
+  const [noMes, setNoMes] = useState<{ enviadas: number; limite: number } | null>(null);
+
+  // Limite de ideias pontuadas no mês (Fase 0, seção 9): avisa antes do envio, nunca bloqueia.
+  useEffect(() => {
+    criarClienteNavegador()
+      .rpc("ideias_no_mes")
+      .then(({ data }) => setNoMes(((data ?? []) as { enviadas: number; limite: number }[])[0] ?? null));
+  }, []);
   const [erro, setErro] = useState<string | null>(null);
   const [processando, setProcessando] = useState(false);
   const [progresso, setProgresso] = useState<string | null>(null);
@@ -460,6 +468,12 @@ export function NovaIdeia({
               </button>
             ))}
           </div>
+          {noMes && noMes.enviadas >= noMes.limite && (
+            <p className="rounded-xl bg-info-bg px-4 py-3 text-info">
+              Você já enviou {noMes.enviadas} ideias este mês. Esta será registrada e analisada normalmente, mas não soma pontos: o limite é de {noMes.limite} ideias
+              pontuadas por mês.
+            </p>
+          )}
           <span className="text-xs font-semibold uppercase tracking-widest text-muted">Teve ajuda de colegas? (coautores)</span>
           {coautores.length > 0 && (
             <div className="flex flex-wrap gap-2">

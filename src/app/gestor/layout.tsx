@@ -57,6 +57,11 @@ export default async function GestorLayout({ children }: { children: React.React
             <Link href="/gestor/painel" className={link}>
               Painel
             </Link>
+            {papeis.includes("rh") && (
+              <Link href="/gestor/rh" className={link}>
+                Autoria anônima
+              </Link>
+            )}
             {gestor && (
               <>
                 <Link href="/gestor/colaboradores" className={link}>

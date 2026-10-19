@@ -145,11 +145,14 @@ export async function salvarConfiguracoes(_: Resultado, form: FormData): Promise
   const teto = ler("teto");
   if (Object.values(valores).includes("erro") || teto === "erro") return { ok: false, mensagem: "Use apenas números, com vírgula para os centavos." };
   if (teto == null) return { ok: false, mensagem: "Informe o teto para implantação direta." };
+  const limite = parseInt(String(form.get("limite_mensal") ?? ""), 10);
+  if (!(limite >= 1 && limite <= 100)) return { ok: false, mensagem: "O limite mensal deve ficar entre 1 e 100 ideias." };
 
   const supabase = await criarClienteServidor();
   const { data: emp } = await supabase.from("empresas").select("id, config").single();
   if (!emp) return { ok: false, mensagem: "Empresa não encontrada." };
-  const config = { ...(emp.config as Record<string, unknown>), valores_unitarios: valores, teto_implantacao_direta: teto };
+  const atual = emp.config as Record<string, unknown> & { pontos?: Record<string, unknown> };
+  const config = { ...atual, valores_unitarios: valores, teto_implantacao_direta: teto, pontos: { ...(atual.pontos ?? {}), limite_mensal: limite } };
   const { error } = await supabase.from("empresas").update({ config }).eq("id", emp.id);
   if (error) return { ok: false, mensagem: "Não foi possível salvar. Tente de novo." };
   revalidatePath("/gestor/configuracoes");

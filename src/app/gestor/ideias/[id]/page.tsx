@@ -5,10 +5,26 @@ import { decideTriagem, ehGestor, meusPapeis } from "@/lib/gestao";
 import { CLASSE_SITUACAO, CLASSE_TOM, MODOS, STATUS, formatarData, formatarDataHora, mmss, nomeCategoria, textoPrazo } from "@/lib/ideias";
 import { criarClienteServidor } from "@/lib/supabase/server";
 import { retomar } from "./acoes";
+import { AjustesGestor, type ValoresAjuste } from "./ajustes";
 import { PainelTriagem } from "./painel";
 import { PainelInicio, PainelPadronizacao, PainelVerificacao, PainelViabilidade, type ValoresUnitarios } from "./painel-etapas";
 
 const moeda = (v: number | string) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const NOME_CAMPO: Record<string, string> = {
+  status: "Etapa", categoria: "Tipo de melhoria", setor_id: "Setor", maquina_id: "Máquina", texto: "Texto", nota: "Nota",
+  custo_estimado: "Custo", ganho_estimado: "Ganho estimado", ganho_verificado: "Ganho verificado", ganho_qualitativo: "Ganho qualitativo",
+  linha_base: "Linha de base", sop_codigo: "Código do SOP", sop_revisao: "Revisão do SOP", responsavel_implantacao: "Responsável",
+  prazo_atual: "Prazo da etapa", prazo_implantacao: "Prazo de implantação",
+};
+function rotuloValor(campo: string, v: string | null, nomes: Map<string, string>) {
+  if (v == null) return "";
+  if (campo === "status") return STATUS[v]?.n ?? v;
+  if (campo === "categoria") return nomeCategoria(v);
+  if (campo === "prazo_atual") return v.split("-").reverse().join("/");
+  if (campo === "setor_id" || campo === "maquina_id") return nomes.get(v) ?? "(removido)";
+  return v;
+}
 
 function Etapa({ titulo, pode, quem, children }: { titulo: string; pode: boolean; quem: string; children: React.ReactNode }) {
   return (
@@ -46,7 +62,7 @@ export default async function DetalheIdeia({ params }: { params: Promise<{ id: s
     supabase
       .from("ideias")
       .select(
-        "canal, notas, custo_estimado, motivo_espera, revisao, ganho_estimado, roi, payback_meses, linha_base, ganho_verificado, ganho_qualitativo, sop_codigo, sop_revisao, padronizada_em",
+        "canal, notas, custo_estimado, motivo_espera, revisao, ganho_estimado, roi, payback_meses, linha_base, ganho_verificado, ganho_qualitativo, sop_codigo, sop_revisao, padronizada_em, categoria, setor_id, maquina_id, texto, nota, responsavel_implantacao, prazo_atual, prazo_implantacao",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -58,6 +74,13 @@ export default async function DetalheIdeia({ params }: { params: Promise<{ id: s
   ]);
   const i = ((fila ?? []) as Linha[])[0];
   if (!i) notFound();
+  const gestor = ehGestor(papeis);
+  const [{ data: ajustesFeitos }, { data: setoresLista }, { data: maquinasLista }] = await Promise.all([
+    supabase.from("ideia_ajustes").select("campo, antes, depois, motivo, criado_em").eq("ideia_id", id).order("criado_em", { ascending: false }),
+    supabase.from("setores").select("id, nome").eq("ativo", true).order("nome"),
+    supabase.from("maquinas").select("id, nome, setor_id").eq("ativa", true).order("nome"),
+  ]);
+  const nomes = new Map<string, string>([...(setoresLista ?? []), ...(maquinasLista ?? [])].map((x) => [x.id as string, x.nome as string]));
 
   const caminhos = (midias ?? []).map((m) => m.caminho);
   const assinadas = caminhos.length ? (await supabase.storage.from("ideias").createSignedUrls(caminhos, 3600)).data ?? [] : [];
@@ -174,6 +197,14 @@ export default async function DetalheIdeia({ params }: { params: Promise<{ id: s
               <PainelPadronizacao id={i.id} />
             </Etapa>
           )}
+          {gestor && extra && (
+            <AjustesGestor
+              id={i.id}
+              v={{ ...(extra as unknown as ValoresAjuste), status: i.status }}
+              setores={(setoresLista ?? []) as { id: string; nome: string }[]}
+              maquinas={(maquinasLista ?? []) as { id: string; nome: string; setor_id: string }[]}
+            />
+          )}
           {i.status === "padronizada" && (
             <section className="rounded-xl border-2 border-good bg-surface p-5">
               <h2 className="font-display text-2xl font-bold">Ideia padronizada</h2>
@@ -278,6 +309,22 @@ export default async function DetalheIdeia({ params }: { params: Promise<{ id: s
               ))}
             </ul>
           </section>
+          {(ajustesFeitos ?? []).length > 0 && (
+            <section className="rounded-xl border border-dashed border-warn bg-surface p-5">
+              <h2 className="font-display text-xl font-bold">Ajustes registrados</h2>
+              <ul className="mt-2 text-sm">
+                {(ajustesFeitos ?? []).map((a, k) => (
+                  <li key={k} className="border-t border-line py-2 first:border-t-0">
+                    <span className="font-mono text-xs text-muted">{formatarDataHora(a.criado_em)}</span> · <b>{NOME_CAMPO[a.campo] ?? a.campo}</b>
+                    <span className="block">
+                      <span className="text-muted line-through">{rotuloValor(a.campo, a.antes, nomes) || "vazio"}</span> → {rotuloValor(a.campo, a.depois, nomes) || "vazio"}
+                    </span>
+                    <span className="block text-muted">Motivo: {a.motivo}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </aside>
       </div>
     </div>

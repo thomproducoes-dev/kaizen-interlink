@@ -15,12 +15,14 @@ export function AcaoAutor({
   empresaId,
   textoAtual,
   aoConcluir,
+  anonima = false,
 }: {
   tipo: "responder" | "reenviar";
   ideiaId: string;
   empresaId: string;
   textoAtual: string;
   aoConcluir: (mensagem: string) => void;
+  anonima?: boolean;
 }) {
   const [texto, setTexto] = useState(tipo === "reenviar" ? textoAtual : "");
   const [audio, setAudio] = useState<{ blob: Blob; url: string; duracao: number } | null>(null);
@@ -80,6 +82,11 @@ export function AcaoAutor({
   return (
     <section className="flex flex-col gap-3 rounded-2xl border-2 border-signal bg-surface p-4">
       <h2 className="font-display text-2xl font-bold">{tipo === "responder" ? "Responder ao comitê" : "Ajustar e reenviar"}</h2>
+      {anonima && (
+        <p className="rounded-xl bg-warn-bg px-4 py-3 text-sm font-semibold text-warn">
+          Sua ideia é anônima: prefira escrever. Sua voz em áudio pode ser reconhecida pelos colegas.
+        </p>
+      )}
       <button
         onClick={gravar}
         className={`flex min-h-16 items-center justify-center gap-3 rounded-2xl bg-bad text-lg font-bold text-white ${gravador.gravando ? "animate-pulse" : ""}`}

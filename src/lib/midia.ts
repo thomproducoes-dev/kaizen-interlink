@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// Limite do plano gratuito do Supabase definido para o piloto (o bucket recusa acima disso).
-export const LIMITE_ARQUIVO_BYTES = 20 * 1024 * 1024;
+// Limite por arquivo definido para o piloto: 50 MB, o máximo do plano gratuito do Supabase (o bucket recusa acima disso).
+// Um vídeo de 30 s em HD gravado no celular fica em torno de 40 MB.
+export const LIMITE_ARQUIVO_BYTES = 50 * 1024 * 1024;
 
 // "audio/webm;codecs=opus" → "audio/webm": o armazenamento compara só o tipo base.
 export const tipoBase = (mime: string) => mime.split(";")[0].trim().toLowerCase();

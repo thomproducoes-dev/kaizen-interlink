@@ -71,7 +71,7 @@ export function MinhasIdeias({ aoAbrir, aoVoltar }: { aoAbrir: (id: string) => v
 }
 
 type Detalhe = {
-  ideia: { protocolo: string; status: string; categoria: string; texto: string | null; prazo_atual: string | null; setores: { nome: string } | null; maquinas: { nome: string } | null };
+  ideia: { protocolo: string; status: string; categoria: string; texto: string | null; prazo_atual: string | null; modo: string; setores: { nome: string } | null; maquinas: { nome: string } | null };
   eventos: { para: string; por_texto: string; nota: string | null; criado_em: string }[];
   midias: { tipo: string; url: string | null; duracao_s: number | null }[];
   mensagens: { texto: string; criada_em: string }[];
@@ -88,7 +88,7 @@ export function DetalheIdeia({ id, euId, empresaId, aoVoltar }: { id: string; eu
     const sb = criarClienteNavegador();
     (async () => {
       const [ideia, eventos, midias, mensagens, selada] = await Promise.all([
-        sb.from("ideias").select("protocolo, status, categoria, texto, prazo_atual, autor_id, setores(nome), maquinas(nome)").eq("id", id).single(),
+        sb.from("ideias").select("protocolo, status, categoria, texto, prazo_atual, autor_id, modo, setores(nome), maquinas(nome)").eq("id", id).single(),
         sb.from("ideia_eventos").select("para, por_texto, nota, criado_em").eq("ideia_id", id).order("criado_em", { ascending: false }),
         sb.from("ideia_midias").select("tipo, caminho, duracao_s").eq("ideia_id", id).order("caminho"),
         sb.from("notificacoes").select("texto, criada_em").eq("ideia_id", id).eq("colaborador_id", euId).order("criada_em", { ascending: false }),
@@ -150,6 +150,7 @@ export function DetalheIdeia({ id, euId, empresaId, aoVoltar }: { id: string; eu
               ideiaId={id}
               empresaId={empresaId}
               textoAtual={d.ideia.texto ?? ""}
+              anonima={d.ideia.modo === "anonimo"}
               aoConcluir={(m) => {
                 setAviso(m);
                 setRecarga((r) => r + 1);

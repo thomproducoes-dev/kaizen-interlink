@@ -132,7 +132,7 @@ export function NovaIdeia({
           novos.push({ id: crypto.randomUUID(), tipo: "foto", blob, url: URL.createObjectURL(blob) });
         } else if (f.type.startsWith("video/")) {
           if (f.size > LIMITE_ARQUIVO_BYTES) {
-            problemas.push(`O vídeo "${f.name}" passa de 20 MB. Grave um vídeo mais curto.`);
+            problemas.push(`O vídeo "${f.name}" passa de 50 MB. Grave um vídeo mais curto ou com qualidade menor.`);
             continue;
           }
           const d = await duracaoVideo(f);
@@ -468,6 +468,19 @@ export function NovaIdeia({
               </button>
             ))}
           </div>
+          {modo === "anonimo" && (audio || anexos.some((a) => a.tipo === "video")) && (
+            <div className="flex flex-col gap-2 rounded-xl border-2 border-warn bg-warn-bg px-4 py-3 text-warn">
+              <p className="font-semibold">
+                Atenção: sua voz {audio ? "no áudio" : ""}
+                {audio && anexos.some((a) => a.tipo === "video") ? " e " : ""}
+                {anexos.some((a) => a.tipo === "video") ? "nos vídeos" : ""} pode ser reconhecida pelos colegas.
+              </p>
+              <p className="text-sm">Para garantir o anonimato, apague o áudio e escreva a ideia, e use vídeos sem fala.</p>
+              <button onClick={() => setPasso(audio ? 2 : 1)} className="self-start rounded-lg border-2 border-warn px-3 py-1.5 font-semibold">
+                {audio ? "Voltar e trocar o áudio por texto" : "Voltar e revisar os vídeos"}
+              </button>
+            </div>
+          )}
           {noMes && noMes.enviadas >= noMes.limite && (
             <p className="rounded-xl bg-info-bg px-4 py-3 text-info">
               Você já enviou {noMes.enviadas} ideias este mês. Esta será registrada e analisada normalmente, mas não soma pontos: o limite é de {noMes.limite} ideias

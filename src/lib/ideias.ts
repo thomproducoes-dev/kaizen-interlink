@@ -43,7 +43,7 @@ export type Modo = "identificado" | "reservado" | "anonimo";
 export const MODOS: { k: Modo; n: string; d: string }[] = [
   { k: "identificado", n: "Com meu nome", d: "O comitê vê seu nome. Você pontua e aparece no ranking." },
   { k: "reservado", n: "Reservado", d: "Aparece como “colaborador do setor” até a aprovação. Depois você decide se mostra o nome." },
-  { k: "anonimo", n: "Anônimo", d: "Ninguém vê seu nome. Os pontos ficam guardados e o RH entrega o prêmio se você pedir." },
+  { k: "anonimo", n: "Anônimo", d: "Ninguém vê seu nome. Prefira escrever: sua voz em áudio pode ser reconhecida. Os pontos ficam guardados e o RH entrega o prêmio se você pedir." },
 ];
 
 // Situação do prazo calculada no banco (fila_ideias), em dias úteis.

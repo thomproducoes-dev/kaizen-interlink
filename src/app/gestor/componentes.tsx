@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { alternarAtivo, criarColaborador, novoAdesivo, redefinirPin, salvarPapeis } from "./actions";
+import Link from "next/link";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { alternarAtivo, criarColaborador, editarColaborador, novoAdesivo, redefinirPin } from "./actions";
 
 export type Colaborador = {
   id: string;
@@ -9,8 +10,10 @@ export type Colaborador = {
   matricula: string;
   ativo: boolean;
   setor: string;
+  setorId: string | null;
   papeis: string[];
   temPin: boolean;
+  pinProvisorio: boolean;
   adesivoEm: string | null;
 };
 
@@ -61,7 +64,7 @@ export function FormNovoColaborador({ setores }: { setores: { id: string; nome: 
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm font-semibold">
-          PIN inicial (4 números)
+          PIN provisório (4 números)
           <input name="pin" required inputMode="numeric" pattern="\d{4}" maxLength={4} className={`${campo} font-mono`} autoComplete="off" />
         </label>
       </div>
@@ -81,15 +84,19 @@ export function FormNovoColaborador({ setores }: { setores: { id: string; nome: 
         {estado && <p className={`text-sm font-semibold ${estado.ok ? "text-good" : "text-bad"}`}>{estado.mensagem}</p>}
       </div>
       <p className="text-xs text-muted">
-        Oriente o colaborador a trocar o PIN depois. PINs com números repetidos ou em sequência (1111, 1234) são recusados.
+        O PIN é provisório: no primeiro acesso, no totem ou na área da gestão, a pessoa é obrigada a criar o próprio. PINs com números repetidos ou em
+        sequência (1111, 1234) são recusados.
       </p>
     </form>
   );
 }
 
-export function LinhaColaborador({ c }: { c: Colaborador }) {
-  const [aberto, setAberto] = useState<null | "pin" | "papeis">(null);
+export function LinhaColaborador({ c, setores }: { c: Colaborador; setores: { id: string; nome: string }[] }) {
+  const [aberto, setAberto] = useState<null | "pin" | "editar">(null);
   const [estadoPin, acaoPin, pendentePin] = useActionState(redefinirPin, null);
+  const [estadoEdicao, acaoEdicao, pendenteEdicao] = useActionState(editarColaborador, null);
+  const [, iniciar] = useTransition();
+  const alternar = (k: "pin" | "editar") => setAberto(aberto === k ? null : k);
 
   return (
     <>
@@ -101,20 +108,33 @@ export function LinhaColaborador({ c }: { c: Colaborador }) {
         <td className="px-3 py-2">
           {!c.ativo ? (
             <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-semibold">Desativado</span>
-          ) : c.temPin ? (
-            <span className="rounded-full bg-good-bg px-2 py-0.5 text-xs font-semibold text-good">Pronto</span>
-          ) : (
+          ) : !c.temPin ? (
             <span className="rounded-full bg-warn-bg px-2 py-0.5 text-xs font-semibold text-warn">Sem PIN</span>
+          ) : c.pinProvisorio ? (
+            <span className="whitespace-nowrap rounded-full bg-info-bg px-2 py-0.5 text-xs font-semibold text-info" title="Na próxima entrada a pessoa cria o próprio PIN">
+              PIN provisório
+            </span>
+          ) : (
+            <span className="rounded-full bg-good-bg px-2 py-0.5 text-xs font-semibold text-good">Pronto</span>
           )}
         </td>
         <td className="px-3 py-2">
           <div className="flex flex-wrap gap-1.5">
-            <button onClick={() => setAberto(aberto === "pin" ? null : "pin")} className="rounded-md border border-line px-2 py-1 text-xs font-semibold">
+            <button onClick={() => alternar("editar")} className="rounded-md border border-line px-2 py-1 text-xs font-semibold">
+              Editar
+            </button>
+            <button onClick={() => alternar("pin")} className="rounded-md border border-line px-2 py-1 text-xs font-semibold">
               Redefinir PIN
             </button>
-            <button onClick={() => setAberto(aberto === "papeis" ? null : "papeis")} className="rounded-md border border-line px-2 py-1 text-xs font-semibold">
-              Papéis
-            </button>
+            {c.ativo && (
+              <Link
+                href={`/gestor/adesivos?id=${c.id}`}
+                className="rounded-md border border-line px-2 py-1 text-xs font-semibold"
+                title="Imprimir ou salvar o adesivo QR só desta pessoa"
+              >
+                Imprimir adesivo
+              </Link>
+            )}
             <form action={novoAdesivo}>
               <input type="hidden" name="id" value={c.id} />
               <button
@@ -140,7 +160,7 @@ export function LinhaColaborador({ c }: { c: Colaborador }) {
             <form action={acaoPin} className="flex flex-wrap items-center gap-2 text-sm">
               <input type="hidden" name="id" value={c.id} />
               <label className="font-semibold" htmlFor={`pin-${c.id}`}>
-                Novo PIN para {c.nome}
+                PIN provisório para {c.nome}
               </label>
               <input id={`pin-${c.id}`} name="pin" inputMode="numeric" pattern="\d{4}" maxLength={4} required className={`${campo} w-24 font-mono`} />
               <button disabled={pendentePin} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink disabled:opacity-50">
@@ -151,18 +171,58 @@ export function LinhaColaborador({ c }: { c: Colaborador }) {
           </td>
         </tr>
       )}
-      {aberto === "papeis" && (
+      {aberto === "editar" && (
         <tr className="border-b border-line bg-surface-2">
           <td colSpan={6} className="px-3 py-3">
-            <form action={salvarPapeis} onSubmit={() => setAberto(null)} className="flex flex-wrap items-center gap-4 text-sm">
+            {/* Envio manual: se o banco recusar (ex.: matrícula repetida), o que foi digitado continua no formulário. */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const dados = new FormData(e.currentTarget);
+                iniciar(() => acaoEdicao(dados));
+              }}
+              className="flex flex-col gap-3 text-sm"
+            >
               <input type="hidden" name="id" value={c.id} />
-              {PAPEIS.map((p) => (
-                <label key={p.k} className="flex items-center gap-2">
-                  <input type="checkbox" name="papeis" value={p.k} defaultChecked={c.papeis.includes(p.k)} className="h-4 w-4" />
-                  {p.n}
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="flex flex-col gap-1 font-semibold">
+                  Nome completo
+                  <input name="nome" required defaultValue={c.nome} className={campo} autoComplete="off" />
                 </label>
-              ))}
-              <button className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink">Salvar papéis</button>
+                <label className="flex flex-col gap-1 font-semibold">
+                  Matrícula
+                  <input name="matricula" required defaultValue={c.matricula} className={campo} autoComplete="off" />
+                </label>
+                <label className="flex flex-col gap-1 font-semibold">
+                  Setor
+                  <select name="setor_id" defaultValue={c.setorId ?? ""} className={campo}>
+                    <option value="">Sem setor</option>
+                    {setores.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nome}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <fieldset className="flex flex-wrap gap-x-5 gap-y-2">
+                <legend className="mb-1 font-semibold">Papéis além de colaborador</legend>
+                {PAPEIS.map((p) => (
+                  <label key={p.k} className="flex items-center gap-2">
+                    <input type="checkbox" name="papeis" value={p.k} defaultChecked={c.papeis.includes(p.k)} className="h-4 w-4" />
+                    {p.n}
+                  </label>
+                ))}
+              </fieldset>
+              <div className="flex flex-wrap items-center gap-3">
+                <button disabled={pendenteEdicao} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink disabled:opacity-50">
+                  {pendenteEdicao ? "Salvando…" : "Salvar alterações"}
+                </button>
+                <button type="button" onClick={() => setAberto(null)} className="rounded-lg border border-line px-3 py-1.5 font-semibold">
+                  Fechar
+                </button>
+                {estadoEdicao && <span className={`font-semibold ${estadoEdicao.ok ? "text-good" : "text-bad"}`}>{estadoEdicao.mensagem}</span>}
+              </div>
             </form>
           </td>
         </tr>

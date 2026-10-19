@@ -10,8 +10,10 @@ export async function POST(request: Request) {
   const corpo = await request.json().catch(() => null);
   const token = typeof corpo?.qr === "string" ? lerAdesivo(corpo.qr) : null;
   const pin = typeof corpo?.pin === "string" ? corpo.pin : "";
+  // Só vem preenchido quando o PIN atual é provisório e a pessoa já escolheu o próprio.
+  const novoPin = typeof corpo?.novoPin === "string" ? corpo.novoPin : null;
 
-  if (!token || !/^\d{4}$/.test(pin)) {
+  if (!token || !/^\d{4}$/.test(pin) || (novoPin !== null && !/^\d{4}$/.test(novoPin))) {
     return NextResponse.json({ status: "invalido" }, { status: 400 });
   }
 
@@ -20,12 +22,17 @@ export async function POST(request: Request) {
   const { data: verificacao, error: erroVerificacao } = await admin.rpc("verificar_acesso", {
     p_qr: token,
     p_pin: pin,
+    p_novo_pin: novoPin,
   });
   if (erroVerificacao) {
     return NextResponse.json({ status: "erro" }, { status: 500 });
   }
 
   const resultado = verificacao?.[0] as { status: string; colaborador_id: string | null } | undefined;
+  // trocar_pin, pin_fraco e pin_igual: PIN certo, mas a sessão só abre depois do PIN próprio.
+  if (resultado && ["trocar_pin", "pin_fraco", "pin_igual"].includes(resultado.status)) {
+    return NextResponse.json({ status: resultado.status });
+  }
   if (!resultado || resultado.status !== "ok" || !resultado.colaborador_id) {
     return NextResponse.json({ status: resultado?.status ?? "invalido" }, { status: 401 });
   }

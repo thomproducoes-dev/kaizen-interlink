@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { validarPin } from "@/lib/pin";
 import { criarClienteServidor } from "@/lib/supabase/server";
 
 export type Resultado = { ok: boolean; mensagem: string } | null;
@@ -13,15 +14,6 @@ function traduzir(msg: string) {
   if (msg.includes("duplicate key") && msg.includes("matricula")) return "Já existe um colaborador com essa matrícula.";
   if (msg.includes("PIN") || msg.includes("permissão") || msg.includes("não encontrado")) return msg;
   return "Não foi possível salvar. Tente de novo.";
-}
-
-// Mesma regra do banco (definir_pin): 4 números, sem repetidos nem sequências óbvias.
-function validarPin(pin: string): string | null {
-  if (!/^\d{4}$/.test(pin)) return "O PIN deve ter 4 números.";
-  if (/^(\d)\1{3}$/.test(pin) || ["1234", "4321", "0123", "9876"].includes(pin)) {
-    return "PIN fácil demais. Evite números repetidos ou em sequência.";
-  }
-  return null;
 }
 
 export async function sair() {
@@ -67,7 +59,7 @@ export async function criarColaborador(_: Resultado, form: FormData): Promise<Re
   if (erroPapeis) return { ok: false, mensagem: "Colaborador criado, mas os papéis não foram salvos. Edite os papéis na lista." };
 
   revalidatePath("/gestor/colaboradores");
-  return { ok: true, mensagem: `${nome} cadastrado. O adesivo já está disponível para impressão.` };
+  return { ok: true, mensagem: `${nome} cadastrado. Imprima o adesivo na linha dele; no primeiro acesso ele troca o PIN provisório.` };
 }
 
 export async function redefinirPin(_: Resultado, form: FormData): Promise<Resultado> {
@@ -79,7 +71,11 @@ export async function redefinirPin(_: Resultado, form: FormData): Promise<Result
   const { error } = await supabase.rpc("definir_pin", { p_colaborador: id, p_pin: pin });
   if (error) return { ok: false, mensagem: traduzir(error.message) };
   revalidatePath("/gestor/colaboradores");
-  return { ok: true, mensagem: "PIN redefinido e adesivo desbloqueado." };
+  const { data: eu } = await supabase.rpc("meu_colaborador");
+  return {
+    ok: true,
+    mensagem: eu === id ? "Seu PIN foi trocado." : "PIN provisório salvo e adesivo desbloqueado. No próximo acesso a pessoa cria o próprio PIN.",
+  };
 }
 
 export async function novoAdesivo(form: FormData) {
@@ -119,18 +115,45 @@ export async function alternarMaquina(form: FormData) {
   revalidatePath("/gestor/maquinas");
 }
 
-export async function salvarPapeis(form: FormData) {
+// Edita nome, matrícula, setor e papéis. O adesivo QR continua valendo (o código não depende desses dados).
+export async function editarColaborador(_: Resultado, form: FormData): Promise<Resultado> {
   const id = String(form.get("id") ?? "");
+  const nome = String(form.get("nome") ?? "").trim();
+  const matricula = String(form.get("matricula") ?? "").trim();
+  const setorId = String(form.get("setor_id") ?? "") || null;
   const papeis = form.getAll("papeis").map(String).filter((p) => PAPEIS_PERMITIDOS.includes(p));
+  if (nome.length < 3) return { ok: false, mensagem: "Informe o nome completo." };
+  if (!matricula) return { ok: false, mensagem: "Informe a matrícula." };
+
   const supabase = await criarClienteServidor();
   const desejados = new Set(["colaborador", ...papeis]);
+  const { data: eu } = await supabase.rpc("meu_colaborador");
+  if (eu === id && !desejados.has("gestor")) {
+    return { ok: false, mensagem: "Você não pode tirar o papel de gestor de si mesmo. Peça a outro gestor." };
+  }
+
+  const { data: antes } = await supabase.from("colaboradores").select("nome, matricula, setor_id").eq("id", id).single();
+  if (!antes) return { ok: false, mensagem: "Colaborador não encontrado." };
+  const { error } = await supabase.from("colaboradores").update({ nome, matricula, setor_id: setorId }).eq("id", id);
+  if (error) return { ok: false, mensagem: traduzir(error.message) };
+
   const { data: atuais } = await supabase.from("colaborador_papeis").select("papel").eq("colaborador_id", id);
   const atuaisSet = new Set((atuais ?? []).map((p) => p.papel as string));
   const remover = [...atuaisSet].filter((p) => !desejados.has(p) && p !== "admin");
   const incluir = [...desejados].filter((p) => !atuaisSet.has(p));
-  if (remover.length) await supabase.from("colaborador_papeis").delete().eq("colaborador_id", id).in("papel", remover);
-  if (incluir.length) await supabase.from("colaborador_papeis").insert(incluir.map((papel) => ({ colaborador_id: id, papel })));
+  const r1 = remover.length ? await supabase.from("colaborador_papeis").delete().eq("colaborador_id", id).in("papel", remover) : { error: null };
+  const r2 = incluir.length ? await supabase.from("colaborador_papeis").insert(incluir.map((papel) => ({ colaborador_id: id, papel }))) : { error: null };
+
   revalidatePath("/gestor/colaboradores");
+  revalidatePath("/gestor/adesivos");
+  if (r1.error || r2.error) return { ok: false, mensagem: "Dados salvos, mas os papéis não foram atualizados. Tente de novo." };
+  const mudouAdesivo = antes.nome !== nome || antes.matricula !== matricula || antes.setor_id !== setorId;
+  return {
+    ok: true,
+    mensagem: mudouAdesivo
+      ? "Dados salvos. O adesivo atual continua funcionando; reimprima se quiser o nome, a matrícula ou o setor novos impressos."
+      : "Dados salvos.",
+  };
 }
 
 // Valores unitários do cálculo de ganho e teto da triagem (Fase 0, seções 5 e 10).

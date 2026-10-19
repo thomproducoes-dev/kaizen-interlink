@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { LeitorQR } from "@/components/leitor-qr";
 import { lerAdesivo } from "@/lib/adesivo";
+import { MENSAGEM_TROCA, validarPin } from "@/lib/pin";
 import { criarClienteNavegador } from "@/lib/supabase/client";
 
 // Entrada da área da gestão (comitê, engenharia, encarregados, gestor):
@@ -47,6 +48,10 @@ function PorAdesivo() {
   const [token, setToken] = useState<string | null>(null);
   const [codigo, setCodigo] = useState("");
   const [pin, setPin] = useState("");
+  // PIN provisório: antes de entrar, a pessoa cria o próprio PIN (digitado duas vezes).
+  const [trocando, setTrocando] = useState(false);
+  const [novo, setNovo] = useState("");
+  const [confirma, setConfirma] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -60,13 +65,17 @@ function PorAdesivo() {
   async function entrar(e: React.FormEvent) {
     e.preventDefault();
     if (!token || !/^\d{4}$/.test(pin)) return setErro("Digite os 4 números do PIN.");
+    if (trocando) {
+      const recusa = validarPin(novo) ?? (novo === pin ? MENSAGEM_TROCA.pin_igual : novo !== confirma ? "Os dois PINs novos não ficaram iguais." : null);
+      if (recusa) return setErro(recusa);
+    }
     setEnviando(true);
     setErro(null);
     try {
       const r = await fetch("/api/totem/entrar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qr: token, pin }),
+        body: JSON.stringify({ qr: token, pin, novoPin: trocando ? novo : undefined }),
       });
       const d = await r.json().catch(() => ({ status: "erro" }));
       if (d.status === "ok") {
@@ -74,7 +83,15 @@ function PorAdesivo() {
         router.refresh();
         return;
       }
+      if (d.status === "trocar_pin" || d.status in MENSAGEM_TROCA) {
+        setTrocando(true);
+        setNovo("");
+        setConfirma("");
+        setErro(MENSAGEM_TROCA[d.status] ?? null);
+        return;
+      }
       setPin("");
+      setTrocando(false);
       setErro(
         d.status === "bloqueado"
           ? "Adesivo bloqueado por 15 minutos após 5 tentativas."
@@ -116,28 +133,59 @@ function PorAdesivo() {
       ) : (
         <form onSubmit={entrar} className="flex flex-col gap-3">
           <p className="rounded-lg bg-good-bg px-3 py-2 text-sm font-semibold text-good">Adesivo lido.</p>
-          <label htmlFor="pin" className="text-sm font-semibold">
-            PIN (4 números)
-          </label>
-          <input
-            id="pin"
-            type="password"
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={4}
-            value={pin}
-            autoFocus
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-            className="rounded-lg border border-line bg-surface px-3 py-2 text-center font-mono text-2xl tracking-[0.5em]"
-          />
+          {!trocando ? (
+            <>
+              <label htmlFor="pin" className="text-sm font-semibold">
+                PIN (4 números)
+              </label>
+              <input
+                id="pin"
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={4}
+                value={pin}
+                autoFocus
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+                className="rounded-lg border border-line bg-surface px-3 py-2 text-center font-mono text-2xl tracking-[0.5em]"
+              />
+            </>
+          ) : (
+            <>
+              <p className="rounded-lg bg-info-bg px-3 py-2 text-sm text-info">
+                <b>Primeiro acesso.</b> O PIN que você recebeu era provisório. Crie o seu: 4 números, sem repetidos nem sequências (1111, 1234).
+              </p>
+              {(
+                [
+                  ["novo", "Novo PIN", novo, setNovo],
+                  ["confirma", "Repita o novo PIN", confirma, setConfirma],
+                ] as const
+              ).map(([id, rotulo, valor, mudar], k) => (
+                <label key={id} className="flex flex-col gap-1 text-sm font-semibold">
+                  {rotulo}
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    maxLength={4}
+                    value={valor}
+                    autoFocus={k === 0}
+                    onChange={(e) => mudar(e.target.value.replace(/\D/g, ""))}
+                    className="rounded-lg border border-line bg-surface px-3 py-2 text-center font-mono text-2xl tracking-[0.5em]"
+                  />
+                </label>
+              ))}
+            </>
+          )}
           <button disabled={enviando} className="rounded-lg bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50">
-            {enviando ? "Entrando…" : "Entrar"}
+            {enviando ? "Entrando…" : trocando ? "Salvar PIN e entrar" : "Entrar"}
           </button>
           <button
             type="button"
             onClick={() => {
               setToken(null);
               setPin("");
+              setTrocando(false);
             }}
             className="text-sm text-muted underline"
           >

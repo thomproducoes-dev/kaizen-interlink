@@ -18,7 +18,7 @@ export default async function Colaboradores() {
 
   const nomeSetor = new Map((setores ?? []).map((s) => [s.id as string, s.nome as string]));
   const credenciais = new Map(
-    ((adesivos ?? []) as { colaborador_id: string; tem_pin: boolean; qr_gerado_em: string }[]).map((a) => [a.colaborador_id, a]),
+    ((adesivos ?? []) as { colaborador_id: string; tem_pin: boolean; pin_provisorio: boolean | null; qr_gerado_em: string }[]).map((a) => [a.colaborador_id, a]),
   );
 
   const lista: Colaborador[] = (colaboradores ?? []).map((c) => ({
@@ -27,8 +27,10 @@ export default async function Colaboradores() {
     matricula: c.matricula,
     ativo: c.ativo,
     setor: c.setor_id ? nomeSetor.get(c.setor_id) ?? "—" : "—",
+    setorId: c.setor_id,
     papeis: ((c.colaborador_papeis ?? []) as { papel: string }[]).map((p) => p.papel),
     temPin: credenciais.get(c.id)?.tem_pin ?? false,
+    pinProvisorio: credenciais.get(c.id)?.pin_provisorio ?? false,
     adesivoEm: credenciais.get(c.id)?.qr_gerado_em ?? null,
   }));
 
@@ -59,7 +61,7 @@ export default async function Colaboradores() {
           </thead>
           <tbody>
             {lista.map((c) => (
-              <LinhaColaborador key={c.id} c={c} />
+              <LinhaColaborador key={c.id} c={c} setores={(setores ?? []) as { id: string; nome: string }[]} />
             ))}
             {lista.length === 0 && (
               <tr>

@@ -7,6 +7,7 @@ import { LeitorQR } from "@/components/leitor-qr";
 import { lerAdesivo, lerMaquina } from "@/lib/adesivo";
 import { listarFila, processarFila } from "@/lib/fila-offline";
 import { formatarData } from "@/lib/ideias";
+import { MENSAGEM_TROCA, validarPin } from "@/lib/pin";
 import { criarClienteNavegador } from "@/lib/supabase/client";
 import { carregarContexto, type Contexto } from "./contexto";
 import { DetalheIdeia, MinhasIdeias } from "./minhas-ideias";
@@ -29,6 +30,10 @@ function Totem() {
   const [tela, setTela] = useState<Tela>("ler");
   const [token, setToken] = useState<string | null>(null);
   const [pin, setPin] = useState("");
+  // Primeiro acesso com PIN provisório: "atual" -> "novo" -> "confirma".
+  const [etapaPin, setEtapaPin] = useState<"atual" | "novo" | "confirma">("atual");
+  const [pinAtual, setPinAtual] = useState("");
+  const [pinNovo, setPinNovo] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [ctx, setCtx] = useState<Contexto | null>(null);
@@ -54,6 +59,9 @@ function Totem() {
     setCtx(null);
     setToken(null);
     setPin("");
+    setEtapaPin("atual");
+    setPinAtual("");
+    setPinNovo("");
     setErro(null);
     setMaquina(null);
     setProtocolo(null);
@@ -138,10 +146,11 @@ function Totem() {
     setErro(null);
     setToken(t);
     setPin("");
+    setEtapaPin("atual");
     setTela("pin");
   }, []);
 
-  async function entrar(pinCompleto: string) {
+  async function entrar(pinCompleto: string, novoPin?: string) {
     if (!token || enviando) return;
     setEnviando(true);
     setErro(null);
@@ -149,10 +158,17 @@ function Totem() {
       const r = await fetch("/api/totem/entrar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qr: token, pin: pinCompleto }),
+        body: JSON.stringify({ qr: token, pin: pinCompleto, novoPin }),
       });
       const dados = await r.json().catch(() => ({ status: "erro" }));
-      if (dados.status === "ok") {
+      if (dados.status === "trocar_pin" || dados.status in MENSAGEM_TROCA) {
+        // PIN provisório certo: a sessão só abre depois de criar o PIN próprio.
+        setPinAtual(pinCompleto);
+        setPin("");
+        setPinNovo("");
+        setEtapaPin("novo");
+        setErro(MENSAGEM_TROCA[dados.status] ?? null);
+      } else if (dados.status === "ok") {
         const sb = criarClienteNavegador();
         const contexto = await carregarContexto(sb);
         setCtx(contexto);
@@ -160,6 +176,7 @@ function Totem() {
         setTela(maquina && contexto.maquinas.some((x) => x.codigo === maquina) ? "nova" : "inicio");
       } else {
         setPin("");
+        setEtapaPin("atual");
         setErro(
           dados.status === "bloqueado"
             ? "Adesivo bloqueado por 15 minutos após 5 tentativas. Procure seu encarregado."
@@ -180,9 +197,22 @@ function Totem() {
     setErro(null);
     if (k === "apagar") return setPin((p) => p.slice(0, -1));
     if (k === "ok") {
-      if (pin.length === 4) entrar(pin);
-      else setErro("Digite os 4 números do PIN.");
-      return;
+      if (pin.length !== 4) return setErro("Digite os 4 números do PIN.");
+      if (etapaPin === "atual") return void entrar(pin);
+      if (etapaPin === "novo") {
+        const recusa = validarPin(pin) ?? (pin === pinAtual ? MENSAGEM_TROCA.pin_igual : null);
+        setPin("");
+        if (recusa) return setErro(recusa);
+        setPinNovo(pin);
+        return setEtapaPin("confirma");
+      }
+      if (pin !== pinNovo) {
+        setPin("");
+        setPinNovo("");
+        setEtapaPin("novo");
+        return setErro("Os dois PINs não ficaram iguais. Crie de novo.");
+      }
+      return void entrar(pinAtual, pin);
     }
     if (pin.length < 4) setPin((p) => p + k);
   }
@@ -262,8 +292,16 @@ function Totem() {
 
         {tela === "pin" && (
           <section className="flex flex-col items-center gap-5 text-center">
-            <h1 className="font-display text-4xl font-bold">Digite seu PIN</h1>
-            <p className="text-lg text-muted">4 números.</p>
+            <h1 className="font-display text-4xl font-bold">
+              {etapaPin === "atual" ? "Digite seu PIN" : etapaPin === "novo" ? "Crie seu PIN" : "Repita o novo PIN"}
+            </h1>
+            <p className="text-lg text-muted">
+              {etapaPin === "atual"
+                ? "4 números."
+                : etapaPin === "novo"
+                  ? "Primeiro acesso: o PIN que você recebeu era provisório. Escolha 4 números só seus (nada de 1111 ou 1234)."
+                  : "Digite os mesmos 4 números para confirmar."}
+            </p>
             <div className="flex gap-4" aria-label={`${pin.length} de 4 dígitos`}>
               {[0, 1, 2, 3].map((i) => (
                 <span key={i} className={`h-5 w-5 rounded-full border-2 border-foreground ${i < pin.length ? "bg-foreground" : ""}`} />
@@ -276,7 +314,7 @@ function Totem() {
                   key={k}
                   onClick={() => tecla(k)}
                   disabled={enviando}
-                  aria-label={k === "apagar" ? "Apagar" : k === "ok" ? "Entrar" : k}
+                  aria-label={k === "apagar" ? "Apagar" : k === "ok" ? "Confirmar" : k}
                   className={`h-16 w-20 rounded-2xl border text-2xl font-semibold sm:h-20 sm:w-24 ${
                     k === "ok" ? "border-signal bg-signal text-signal-ink" : "border-line bg-surface-2"
                   }`}

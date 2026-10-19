@@ -37,6 +37,7 @@ declare
   k text;
   v_novo text;
   v_antes text;
+  v_igual boolean;
   v_n int := 0;
 begin
   if not sou_gestor() then raise exception 'Apenas o gestor do programa faz ajustes.'; end if;
@@ -48,7 +49,9 @@ begin
     if not v_campos ? k then raise exception 'Campo % não pode ser ajustado.', k; end if;
     v_novo := nullif(trim(p_dados->>k), '');
     execute format('select %I::text from ideias where id = $1', k) into v_antes using p_ideia;
-    if v_novo is not distinct from v_antes then continue; end if;
+    -- Compara no tipo do campo: "9000.00" e "9000" são o mesmo valor e não geram ajuste.
+    execute format('select %I is not distinct from $1::%s from ideias where id = $2', k, v_campos->>k) into v_igual using v_novo, p_ideia;
+    if v_igual then continue; end if;
 
     if k = 'setor_id' and not exists (select 1 from setores where id = v_novo::uuid and empresa_id = i.empresa_id) then
       raise exception 'Setor inválido.';

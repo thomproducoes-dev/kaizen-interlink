@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { CLASSE_SITUACAO, CLASSE_TOM, STATUS, formatarData, nomeCategoria, textoPrazo } from "@/lib/ideias";
 import { criarClienteServidor } from "@/lib/supabase/server";
+import { FiltrosFila } from "./filtros";
 
 export type LinhaFila = {
   id: string;
@@ -37,8 +39,15 @@ function diasAtras(n: number) {
   return new Date(Date.now() - n * 24 * 3600 * 1000).toISOString();
 }
 
-export default async function Fila({ searchParams }: { searchParams: Promise<{ f?: string }> }) {
-  const { f = "triagem" } = await searchParams;
+// Compara sem acento e sem diferença de maiúsculas: "seguranca" encontra "Segurança".
+const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const unicos = (l: (string | null)[]) => Array.from(new Set(l.filter((x): x is string => !!x))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+type Busca = { f?: string; q?: string; tipo?: string; setor?: string; maquina?: string; autor?: string };
+
+export default async function Fila({ searchParams }: { searchParams: Promise<Busca> }) {
+  const busca = await searchParams;
+  const { f = "triagem", q = "", tipo = "", setor = "", maquina = "", autor = "" } = busca;
   const filtro = FILTROS[f] ?? FILTROS.triagem;
   const supabase = await criarClienteServidor();
   const seteDias = diasAtras(7);
@@ -47,7 +56,25 @@ export default async function Fila({ searchParams }: { searchParams: Promise<{ f
     supabase.from("alertas_gestao").select("id, tipo, texto, criado_em, ideia_id").gte("criado_em", seteDias).order("criado_em", { ascending: false }).limit(12),
   ]);
   const todas = (data ?? []) as LinhaFila[];
-  const lista = filtro.status ? todas.filter((l) => filtro.status!.includes(l.status)) : todas;
+  // Busca e filtros valem para todas as abas; a aba escolhe o status.
+  const termo = normalizar(q.trim());
+  const filtradas = todas.filter(
+    (l) =>
+      (!termo || normalizar(`${l.protocolo} ${l.texto ?? ""}`).includes(termo)) &&
+      (!tipo || l.categoria === tipo) &&
+      (!setor || l.setor === setor) &&
+      (!maquina || l.maquina === maquina) &&
+      (!autor || l.autor === autor),
+  );
+  const lista = filtro.status ? filtradas.filter((l) => filtro.status!.includes(l.status)) : filtradas;
+  const mantemFiltros = (aba: string) => {
+    const p = new URLSearchParams({ f: aba });
+    for (const [k, v] of Object.entries({ q, tipo, setor, maquina, autor })) if (v) p.set(k, v);
+    return `/gestor/fila?${p.toString()}`;
+  };
+  const opcoesMaquinas = Array.from(new Map(todas.filter((l) => l.maquina).map((l) => [`${l.setor}|${l.maquina}`, { nome: l.maquina!, setor: l.setor }])).values()).sort((a, b) =>
+    a.nome.localeCompare(b.nome, "pt-BR"),
+  );
   const abertas = todas.filter((l) => !["reprovada", "padronizada"].includes(l.status));
   const estouradas = abertas.filter((l) => l.situacao === "estourado").length;
   const emAlerta = abertas.filter((l) => l.situacao === "alerta" || l.situacao === "vence_hoje").length;
@@ -74,11 +101,11 @@ export default async function Fila({ searchParams }: { searchParams: Promise<{ f
 
       <nav className="flex flex-wrap gap-1.5 text-sm" aria-label="Filtrar fila">
         {Object.entries(FILTROS).map(([k, v]) => {
-          const n = v.status ? todas.filter((l) => v.status!.includes(l.status)).length : todas.length;
+          const n = v.status ? filtradas.filter((l) => v.status!.includes(l.status)).length : filtradas.length;
           return (
             <Link
               key={k}
-              href={`/gestor/fila?f=${k}`}
+              href={mantemFiltros(k)}
               className={`rounded-full border px-3 py-1.5 font-semibold ${f === k ? "border-foreground bg-foreground text-background" : "border-line bg-surface"}`}
             >
               {v.n} · {n}
@@ -86,6 +113,16 @@ export default async function Fila({ searchParams }: { searchParams: Promise<{ f
           );
         })}
       </nav>
+
+      <Suspense>
+        <FiltrosFila
+          setores={unicos(todas.map((l) => l.setor))}
+          maquinas={opcoesMaquinas}
+          autores={unicos(todas.map((l) => l.autor))}
+          encontradas={filtradas.length}
+          total={todas.length}
+        />
+      </Suspense>
 
       <section className="overflow-x-auto rounded-xl border border-line bg-surface">
         <table className="w-full min-w-[900px] text-sm">
@@ -142,7 +179,7 @@ export default async function Fila({ searchParams }: { searchParams: Promise<{ f
             {lista.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-3 py-10 text-center text-muted">
-                  Nada nesta fila.
+                  {filtradas.length < todas.length ? "Nenhuma ideia nesta aba atende à busca." : "Nada nesta fila."}
                 </td>
               </tr>
             )}

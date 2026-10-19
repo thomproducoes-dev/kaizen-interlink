@@ -82,6 +82,9 @@ export default async function GestorLayout({ children }: { children: React.React
                 <Link href="/gestor/configuracoes" className={link}>
                   Configurações
                 </Link>
+                <Link href="/gestor/cartaz" className={link}>
+                  Cartaz do totem
+                </Link>
               </>
             )}
           </nav>

@@ -158,3 +158,52 @@ export async function salvarConfiguracoes(_: Resultado, form: FormData): Promise
   revalidatePath("/gestor/configuracoes");
   return { ok: true, mensagem: "Configurações salvas." };
 }
+
+// Feriados e férias coletivas: o relógio de prazos não conta esses dias (Fase 0, seção 4).
+// Feriados nacionais (Lei 662/1949, Lei 14.759/2023) e datas móveis, calculadas a partir da Páscoa.
+const FERIADOS_NACIONAIS: Record<number, [string, string][]> = {
+  2026: [
+    ["2026-01-01", "Confraternização Universal"], ["2026-02-16", "Carnaval (ponto facultativo)"], ["2026-02-17", "Carnaval (ponto facultativo)"],
+    ["2026-04-03", "Sexta-feira Santa"], ["2026-04-21", "Tiradentes"], ["2026-05-01", "Dia do Trabalho"],
+    ["2026-06-04", "Corpus Christi (ponto facultativo)"], ["2026-09-07", "Independência"], ["2026-10-12", "Nossa Senhora Aparecida"],
+    ["2026-11-02", "Finados"], ["2026-11-15", "Proclamação da República"], ["2026-11-20", "Dia da Consciência Negra"], ["2026-12-25", "Natal"],
+  ],
+  2027: [
+    ["2027-01-01", "Confraternização Universal"], ["2027-02-08", "Carnaval (ponto facultativo)"], ["2027-02-09", "Carnaval (ponto facultativo)"],
+    ["2027-03-26", "Sexta-feira Santa"], ["2027-04-21", "Tiradentes"], ["2027-05-01", "Dia do Trabalho"],
+    ["2027-05-27", "Corpus Christi (ponto facultativo)"], ["2027-09-07", "Independência"], ["2027-10-12", "Nossa Senhora Aparecida"],
+    ["2027-11-02", "Finados"], ["2027-11-15", "Proclamação da República"], ["2027-11-20", "Dia da Consciência Negra"], ["2027-12-25", "Natal"],
+  ],
+};
+
+export async function adicionarFeriado(_: Resultado, form: FormData): Promise<Resultado> {
+  const data = String(form.get("data") ?? "");
+  const descricao = String(form.get("descricao") ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return { ok: false, mensagem: "Escolha a data." };
+  if (!descricao) return { ok: false, mensagem: "Descreva o feriado ou a folga (ex.: Aniversário de São Bento do Sul)." };
+  const supabase = await criarClienteServidor();
+  const { data: empresaId } = await supabase.rpc("minha_empresa");
+  const { error } = await supabase.from("feriados").upsert({ empresa_id: empresaId, data, descricao }, { onConflict: "empresa_id,data" });
+  if (error) return { ok: false, mensagem: "Não foi possível salvar. Tente de novo." };
+  revalidatePath("/gestor/configuracoes");
+  return { ok: true, mensagem: "Data salva. O relógio de prazos já desconta este dia." };
+}
+
+export async function importarFeriadosNacionais(form: FormData) {
+  const ano = Number(form.get("ano"));
+  const lista = FERIADOS_NACIONAIS[ano];
+  if (!lista) return;
+  const supabase = await criarClienteServidor();
+  const { data: empresaId } = await supabase.rpc("minha_empresa");
+  await supabase
+    .from("feriados")
+    .upsert(lista.map(([data, descricao]) => ({ empresa_id: empresaId, data, descricao })), { onConflict: "empresa_id,data", ignoreDuplicates: true });
+  revalidatePath("/gestor/configuracoes");
+}
+
+export async function removerFeriado(form: FormData) {
+  const data = String(form.get("data") ?? "");
+  const supabase = await criarClienteServidor();
+  await supabase.from("feriados").delete().eq("data", data);
+  revalidatePath("/gestor/configuracoes");
+}

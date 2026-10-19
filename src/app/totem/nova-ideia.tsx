@@ -137,7 +137,7 @@ export function NovaIdeia({
           }
           const d = await duracaoVideo(f);
           if (d > ctx.config.videoMax + 1) {
-            problemas.push(`O vídeo "${f.name}" tem ${Math.round(d)} s. Envie vídeos de até ${ctx.config.videoMax} s.`);
+            problemas.push(`O vídeo "${f.name}" tem ${Math.round(d)} s. Grave vídeos de até ${ctx.config.videoSugerido} s.`);
             continue;
           }
           novos.push({ id: crypto.randomUUID(), tipo: "video", blob: f, url: URL.createObjectURL(f), duracao: d });
@@ -254,7 +254,7 @@ export function NovaIdeia({
         <>
           <h1 className="font-display text-4xl font-bold">O que você viu?</h1>
           <p className="text-lg text-muted">
-            Fotos ou vídeos curtos (até {ctx.config.videoMax} s) do problema ou do local. Se não der, pule.
+            Fotos ou vídeos curtos (até {ctx.config.videoSugerido} s) do problema ou do local. Se não der, pule.
           </p>
           {anexos.length > 0 && (
             <div className="grid grid-cols-3 gap-2">

@@ -15,6 +15,12 @@ const NOME_PAPEL: Record<string, string> = {
   rh: "RH",
 };
 
+// "Thomas Ferreira" → "TF"
+function iniciais(nome: string) {
+  const partes = nome.split(" ").filter(Boolean);
+  return ((partes[0]?.[0] ?? "") + (partes.length > 1 ? partes[partes.length - 1][0] : "")).toUpperCase();
+}
+
 export default async function GestorLayout({ children }: { children: React.ReactNode }) {
   const supabase = await criarClienteServidor();
   const {
@@ -80,15 +86,27 @@ export default async function GestorLayout({ children }: { children: React.React
             )}
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
-            <span className="hidden text-right leading-tight sm:block">
-              <b className="block">{eu?.nome}</b>
-              <span className="text-xs text-muted">
-                {papeis
-                  .filter((p) => NOME_PAPEL[p])
-                  .map((p) => NOME_PAPEL[p])
-                  .join(" · ")}
+            {/* Quem está usando a área da gestão e com quais papéis: sempre visível, também no celular. */}
+            <div className="flex items-center gap-2.5" aria-label={`Conectado como ${eu?.nome ?? ""}`}>
+              <span
+                aria-hidden="true"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent font-display text-base font-bold text-accent-ink"
+              >
+                {iniciais(String(eu?.nome ?? "?"))}
               </span>
-            </span>
+              <span className="flex min-w-0 flex-col leading-tight">
+                <b className="truncate">{eu?.nome}</b>
+                <span className="mt-0.5 flex flex-wrap gap-1">
+                  {papeis
+                    .filter((p) => NOME_PAPEL[p])
+                    .map((p) => (
+                      <span key={p} className="rounded-full bg-tint px-2 py-px text-[11px] font-semibold">
+                        {NOME_PAPEL[p]}
+                      </span>
+                    ))}
+                </span>
+              </span>
+            </div>
             <form action={sair}>
               <button className="rounded-lg border border-line px-3 py-1.5 font-semibold">Sair</button>
             </form>

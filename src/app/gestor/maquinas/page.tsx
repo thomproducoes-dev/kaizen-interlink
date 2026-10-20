@@ -23,9 +23,14 @@ export default async function Maquinas() {
           <h1 className="font-display text-4xl font-bold">Máquinas e postos</h1>
           <p className="text-muted">A etiqueta QR colada na máquina abre o envio de ideia já com setor e máquina preenchidos.</p>
         </div>
-        <Link href="/gestor/maquinas/etiquetas" className="rounded-lg bg-accent px-4 py-2 font-semibold text-accent-ink">
-          Imprimir etiquetas
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/gestor/maquinas/cartazes" className="rounded-lg bg-accent px-4 py-2 font-semibold text-accent-ink">
+            Cartazes A4
+          </Link>
+          <Link href="/gestor/maquinas/etiquetas" className="rounded-lg border border-line px-4 py-2 font-semibold">
+            Etiquetas pequenas
+          </Link>
+        </div>
       </div>
 
       <FormNovaMaquina setores={(setores ?? []) as { id: string; nome: string }[]} />
@@ -50,7 +55,12 @@ export default async function Maquinas() {
                     {m.ativa ? "Ativa" : "Desativada"}
                   </span>
                 </td>
-                <td className="px-3 py-2">
+                <td className="flex flex-wrap gap-1.5 px-3 py-2">
+                  {m.ativa && (
+                    <Link href={`/gestor/maquinas/cartazes?id=${m.id}`} className="rounded-md border border-line px-2 py-1 text-xs font-semibold">
+                      Cartaz A4
+                    </Link>
+                  )}
                   <form action={alternarMaquina}>
                     <input type="hidden" name="id" value={m.id} />
                     <input type="hidden" name="ativa" value={String(m.ativa)} />
